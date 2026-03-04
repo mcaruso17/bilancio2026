@@ -4,7 +4,7 @@ import json
 import os
 from datetime import datetime
 from auth import Authenticator
-from permission import puo_modificare, is_admin
+from permissions import puo_modificare, puo_visualizzare, is_admin, is_super_admin
 from database import init_database, get_connection
 from config import ADMIN_USERNAME, ADMIN_PASSWORD
 from load_users import genera_email, genera_password
@@ -20,8 +20,8 @@ BILANCIO_CSV = "bilancio2026.csv"
 MAPPATURA_FILE = "mappatura_uffici.json"
 
 UFFICI = [
-    "1", "2", "3", "4", "5", "6", "7",
-    "8", "9", "10", "11", "12", "13", "CRS I", "CRS II"
+    "I", "II", "III", "IV", "V", "VI", "VII",
+    "VIII", "IX", "X", "XI", "XII", "XIII",
 ]
 
 # ======================================================================
@@ -42,7 +42,6 @@ MEF_CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;600;700&display=swap');
 
-/* -- Design tokens -- */
 :root {
     --mef-blue:       #1D3D8F;
     --mef-blue-dark:  #132B6B;
@@ -52,7 +51,6 @@ MEF_CSS = """
     --font: 'Segoe UI', 'Source Sans 3', sans-serif;
 }
 
-/* ---- DARK-MODE NEUTRALISATION ---- */
 [data-theme="dark"] .main,
 [data-theme="dark"] .block-container,
 [data-theme="dark"] section[data-testid="stMain"],
@@ -122,7 +120,6 @@ MEF_CSS = """
     background-color: #FFFFFF !important;
     color: #17203A !important;
 }
-/* Keep sidebar dark */
 [data-theme="dark"] [data-testid="stSidebar"],
 [data-theme="dark"] [data-testid="stSidebar"] * {
     background-color: #132B6B !important;
@@ -132,7 +129,6 @@ MEF_CSS = """
     color: #FFFFFF !important;
 }
 
-/* ---- BASE ---- */
 html, body, [class*="css"] { font-family: var(--font) !important; }
 .main,
 section[data-testid="stMain"],
@@ -147,7 +143,6 @@ section[data-testid="stMain"],
     background-color: #FFFFFF !important;
 }
 
-/* ---- INSTITUTIONAL HEADER ---- */
 .mef-header {
     background: #1D3D8F;
     border-bottom: 4px solid #C49B1D;
@@ -183,7 +178,6 @@ section[data-testid="stMain"],
     text-transform: uppercase; margin-top: 3px;
 }
 
-/* ---- PAGE TITLE / DIVIDER ---- */
 .mef-rule { border: none; border-top: 1px solid #CED5E8; margin: 1.25rem 0; }
 .mef-page-title {
     font-size: 21px; font-weight: 700; color: #1D3D8F;
@@ -196,7 +190,6 @@ section[data-testid="stMain"],
     font-family: var(--font);
 }
 
-/* ---- TAGS ---- */
 .mef-tag {
     display: inline-block; padding: 2px 7px; border-radius: 2px;
     font-size: 10px; font-weight: 700; letter-spacing: .07em;
@@ -205,7 +198,6 @@ section[data-testid="stMain"],
 .tag-nav { background-color: #1D3D8F; color: #FFFFFF; }
 .tag-map { background-color: #C49B1D; color: #FFFFFF; }
 
-/* ---- STATUS CARDS ---- */
 .mef-status-row { display: flex; gap: 10px; margin-bottom: 1.5rem; flex-wrap: wrap; }
 .mef-status-card {
     flex: 1; min-width: 200px; border-radius: 3px;
@@ -228,7 +220,6 @@ section[data-testid="stMain"],
     background: #1D3D8F; color: #FFFFFF;
 }
 
-/* ---- SEARCH INPUT ---- */
 .stTextInput > div > div > input {
     border: 1.5px solid #CED5E8 !important;
     border-radius: 3px !important; font-size: 14px !important;
@@ -246,7 +237,6 @@ section[data-testid="stMain"],
     color: #556080 !important; font-family: var(--font) !important;
 }
 
-/* ---- MULTISELECT ---- */
 .stMultiSelect > label {
     font-size: 11px !important; font-weight: 700 !important;
     text-transform: uppercase !important; letter-spacing: .07em !important;
@@ -262,7 +252,6 @@ section[data-testid="stMain"],
     font-size: 12px !important;
 }
 
-/* ---- SELECTBOX ---- */
 .stSelectbox > label {
     font-size: 11px !important; font-weight: 700 !important;
     text-transform: uppercase !important; letter-spacing: .07em !important;
@@ -272,7 +261,6 @@ section[data-testid="stMain"],
     background-color: #FFFFFF !important; color: #17203A !important;
 }
 
-/* ---- TABS ---- */
 .stTabs [data-baseweb="tab-list"] {
     border-bottom: 2px solid #CED5E8 !important;
     gap: 0 !important; background-color: #FFFFFF !important;
@@ -293,7 +281,6 @@ section[data-testid="stMain"],
     padding-top: 1.25rem !important; background-color: #FFFFFF !important;
 }
 
-/* ---- EXPANDER / DOCUMENT CARDS ---- */
 .streamlit-expanderHeader, details summary {
     background-color: #FFFFFF !important;
     border: 1px solid #CED5E8 !important; border-radius: 3px !important;
@@ -310,7 +297,6 @@ section[data-testid="stMain"],
     background-color: #FFFFFF !important; color: #17203A !important;
 }
 
-/* ---- TABLE ---- */
 table {
     font-size: 12.5px !important; border-collapse: collapse !important;
     width: 100% !important; font-family: var(--font) !important;
@@ -329,7 +315,6 @@ td {
 }
 tr:nth-child(even) td { background-color: #F5F6F8 !important; }
 
-/* ---- METRICS ---- */
 [data-testid="stMetricValue"] {
     color: #1D3D8F !important;
     font-weight: 700 !important;
@@ -343,7 +328,6 @@ tr:nth-child(even) td { background-color: #F5F6F8 !important; }
     font-family: var(--font) !important;
 }
 
-/* ---- BUTTONS ---- */
 .stButton > button,
 .stDownloadButton > button {
     background-color: #1D3D8F !important;
@@ -359,7 +343,6 @@ tr:nth-child(even) td { background-color: #F5F6F8 !important; }
     background-color: #132B6B !important;
 }
 
-/* ---- SIDEBAR ---- */
 [data-testid="stSidebar"] {
     background-color: #132B6B !important;
     border-right: 3px solid #C49B1D !important;
@@ -386,7 +369,6 @@ tr:nth-child(even) td { background-color: #F5F6F8 !important; }
     letter-spacing: .07em !important; color: rgba(255,255,255,.50) !important;
 }
 [data-testid="stSidebar"] hr { border-color: rgba(255,255,255,.12) !important; }
-/* Sidebar radio buttons */
 [data-testid="stSidebar"] .stRadio label {
     color: rgba(255,255,255,.82) !important;
     font-size: 13px !important;
@@ -395,7 +377,6 @@ tr:nth-child(even) td { background-color: #F5F6F8 !important; }
     background-color: transparent !important;
 }
 
-/* ---- SIDEBAR ALWAYS VISIBLE ---- */
 [data-testid="stSidebar"] {
     margin-left: 0 !important;
     transform: none !important;
@@ -408,14 +389,12 @@ tr:nth-child(even) td { background-color: #F5F6F8 !important; }
     width: 300px !important;
     min-width: 300px !important;
 }
-/* Hide collapse/expand buttons */
 [data-testid="stSidebarCollapseButton"],
 [data-testid="collapsedControl"],
 [data-testid="stSidebarCollapsedControl"] {
     display: none !important;
 }
 
-/* ---- FIX: STREAMLIT NATIVE HEADER BAR (white stripe) ---- */
 header[data-testid="stHeader"] {
     background-color: transparent !important;
     backdrop-filter: none !important;
@@ -429,14 +408,12 @@ header[data-testid="stHeader"] [data-testid="stToolbar"] {
     display: none !important;
 }
 
-/* ---- HIDE STREAMLIT CHROME ---- */
 #MainMenu                              { display: none !important; }
 footer                                 { display: none !important; }
 [data-testid="stToolbar"]             { display: none !important; }
 [data-testid="stDecoration"]          { display: none !important; }
 [data-testid="stStatusWidget"]        { display: none !important; }
 
-/* ---- FOOTER ---- */
 .mef-footer {
     border-top: 1px solid #CED5E8; margin-top: 3rem; padding-top: 1rem;
     font-size: 11px; color: #556080; font-family: var(--font);
@@ -454,7 +431,6 @@ st.markdown(MEF_CSS, unsafe_allow_html=True)
 # ===================================================================
 
 def pagina_login():
-    """Mostra il form di login"""
     st.markdown("""
     <div class="mef-header">
       <div class="mef-header-inner">
@@ -485,7 +461,6 @@ def pagina_login():
             st.error(messaggio)
 
 def pagina_cambio_password():
-    """Forza il cambio password al primo accesso"""
     st.markdown("""
     <div class="mef-header">
       <div class="mef-header-inner">
@@ -516,7 +491,6 @@ def pagina_cambio_password():
                 st.error(messaggio)
 
 def pagina_carica_utenti():
-    """Permette all'admin di caricare utenti da Excel"""
     st.markdown('<div class="mef-page-title">Caricamento Utenti</div>', unsafe_allow_html=True)
     st.markdown('<div class="mef-page-subtitle">Area riservata all\'amministratore del sistema</div>', unsafe_allow_html=True)
 
@@ -598,7 +572,6 @@ def pagina_carica_utenti():
             st.rerun()
 
 def pannello_admin():
-    """Pannello per il direttore: reset password"""
     with st.expander("Gestione Utenti - Reset Password"):
         with get_connection() as conn:
             utenti = conn.execute(
@@ -632,11 +605,6 @@ if st.session_state.deve_cambiare_password:
 
 # ===================================================================
 #  DA QUI IN GIU: UTENTE AUTENTICATO
-# ===================================================================
-
-
-# ===================================================================
-#  INSTITUTIONAL HEADER
 # ===================================================================
 
 st.markdown("""
@@ -680,10 +648,6 @@ def load_bilancio():
     return df
 
 
-# ===================================================================
-#  PERSISTENZA MAPPATURA (JSON)
-# ===================================================================
-
 def load_mappatura():
     if os.path.exists(MAPPATURA_FILE):
         try:
@@ -698,10 +662,6 @@ def save_mappatura(data):
     with open(MAPPATURA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-
-# ===================================================================
-#  HELPER
-# ===================================================================
 
 def fmt_eur(val):
     if pd.isna(val) or val == 0:
@@ -745,11 +705,6 @@ if not data_ok:
     """, unsafe_allow_html=True)
     st.stop()
 
-
-# ===================================================================
-#  STATUS INDICATOR
-# ===================================================================
-
 st.markdown(f"""
 <div class="mef-page-title">Legge di Bilancio 2026</div>
 <div class="mef-page-subtitle">
@@ -784,17 +739,25 @@ pagina = st.sidebar.radio(
 # ==================================================================
 
 if pagina == "Navigatore e Selezione":
+
+    # --- STEP 1 --- TITOLO ---
     st.markdown('<div class="mef-page-title" style="font-size:17px">1. Titolo</div>', unsafe_allow_html=True)
     titoli = sorted(df["Titolo"].unique())
-    sel_titoli = st.multiselect("Seleziona uno o piu Titoli:",options=titoli,key="sel_titolo",)
+    sel_titoli = st.multiselect(
+        "Seleziona uno o piu Titoli:",
+        options=titoli,
+        key="sel_titolo",
+    )
     if not sel_titoli:
         st.info("Seleziona almeno un titolo per continuare.")
         st.stop()
+
     df_filtered = df[df["Titolo"].isin(sel_titoli)].copy()
 
-    # --- STEP 1 --- AMMINISTRAZIONI ---
-    st.markdown('<div class="mef-page-title" style="font-size:17px">1. Amministrazioni</div>', unsafe_allow_html=True)
-    amministrazioni = sorted(df["Amministrazione"].unique())
+    # --- STEP 2 --- AMMINISTRAZIONI ---
+    st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
+    st.markdown('<div class="mef-page-title" style="font-size:17px">2. Amministrazioni</div>', unsafe_allow_html=True)
+    amministrazioni = sorted(df_filtered["Amministrazione"].unique())
     sel_amm = st.multiselect(
         "Seleziona una o piu Amministrazioni:",
         options=amministrazioni,
@@ -804,11 +767,11 @@ if pagina == "Navigatore e Selezione":
         st.info("Seleziona almeno un'amministrazione per iniziare.")
         st.stop()
 
-    df_filtered = df[df["Amministrazione"].isin(sel_amm)].copy()
+    df_filtered = df_filtered[df_filtered["Amministrazione"].isin(sel_amm)].copy()
 
-    # --- STEP 2 --- CENTRO RESPONSABILITA ---
+    # --- STEP 3 --- CENTRO RESPONSABILITA ---
     st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
-    st.markdown('<div class="mef-page-title" style="font-size:17px">2. Centro Responsabilita (Dipartimento)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="mef-page-title" style="font-size:17px">3. Centro Responsabilita (Dipartimento)</div>', unsafe_allow_html=True)
 
     cdr_col = "Centro Responsabilita" if "Centro Responsabilita" in df_filtered.columns else "Centro Responsabilit\u00e0"
     cdr_options = sorted(df_filtered[cdr_col].unique())
@@ -823,9 +786,9 @@ if pagina == "Navigatore e Selezione":
             df_filtered[cdr_col].isin(sel_cdr)
         ].copy()
 
-    # --- STEP 3 --- MISSIONI ---
+    # --- STEP 4 --- MISSIONI ---
     st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
-    st.markdown('<div class="mef-page-title" style="font-size:17px">3. Missioni</div>', unsafe_allow_html=True)
+    st.markdown('<div class="mef-page-title" style="font-size:17px">4. Missioni</div>', unsafe_allow_html=True)
 
     miss_labels, miss_map = build_label_map(
         df_filtered, "Codice Missione", "Missione"
@@ -844,9 +807,9 @@ if pagina == "Navigatore e Selezione":
         df_filtered["Codice Missione"].isin(sel_miss_codes)
     ].copy()
 
-    # --- STEP 4 --- PROGRAMMI ---
+    # --- STEP 5 --- PROGRAMMI ---
     st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
-    st.markdown('<div class="mef-page-title" style="font-size:17px">4. Programmi</div>', unsafe_allow_html=True)
+    st.markdown('<div class="mef-page-title" style="font-size:17px">5. Programmi</div>', unsafe_allow_html=True)
 
     prog_labels, prog_map = build_label_map(
         df_filtered, "Codice Programma", "Programma"
@@ -865,9 +828,9 @@ if pagina == "Navigatore e Selezione":
         df_filtered["Codice Programma"].isin(sel_prog_codes)
     ].copy()
 
-    # --- STEP 5 --- AZIONI (opzionale) ---
+    # --- STEP 6 --- AZIONI (opzionale) ---
     st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
-    st.markdown('<div class="mef-page-title" style="font-size:17px">5. Azioni (opzionale)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="mef-page-title" style="font-size:17px">6. Azioni (opzionale)</div>', unsafe_allow_html=True)
 
     az_labels, az_map = build_label_map(
         df_filtered, "Codice Azione", "Azione"
@@ -882,8 +845,6 @@ if pagina == "Navigatore e Selezione":
         df_filtered = df_filtered[
             df_filtered["Codice Azione"].isin(sel_az_codes)
         ].copy()
-
-
 
     # ===================================================================
     #  OUTPUT -- RISULTATI
@@ -903,7 +864,6 @@ if pagina == "Navigatore e Selezione":
     col_m2.metric("Piani Gestionali", f"{n_pg_out:,}")
     col_m3.metric("Totale CP 2026", fmt_eur(totale_cp))
 
-    # --- Ricerca rapida ---
     search_q = st.text_input(
         "Cerca nei risultati",
         placeholder="es. infrastrutture, ferroviario, 7001 ...",
@@ -926,7 +886,6 @@ if pagina == "Navigatore e Selezione":
         st.warning("Nessun risultato con i filtri selezionati.")
         st.stop()
 
-    # --- Visualizzazione capitoli ---
     for amm in sorted(df_out["Amministrazione"].unique()):
         df_amm = df_out[df_out["Amministrazione"] == amm]
         st.markdown(
@@ -997,9 +956,14 @@ if pagina == "Navigatore e Selezione":
 
     st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
 
-    tab_csv, tab_ufficio = st.tabs(["Esporta CSV", "Assegna a Ufficio"])
+    user_ruolo = st.session_state.ruolo
+    user_puo_mappare = is_super_admin() or user_ruolo in ["DIR.", "FUN."]
 
-    # --- Tab CSV ---
+    if user_puo_mappare:
+        tab_csv, tab_ufficio = st.tabs(["Esporta CSV", "Assegna a Ufficio"])
+    else:
+        tab_csv = st.tabs(["Esporta CSV"])[0]
+
     with tab_csv:
         export_cols = [
             "Amministrazione", cdr_col,
@@ -1023,80 +987,78 @@ if pagina == "Navigatore e Selezione":
             mime="text/csv",
         )
 
-    # --- Tab Assegna Ufficio ---
-    with tab_ufficio:
-        st.markdown(
-            "Assegna **tutti** i capitoli e PG visualizzati sopra a un ufficio."
-        )
+    if user_puo_mappare:
+        with tab_ufficio:
+            st.markdown(
+                "Assegna **tutti** i capitoli e PG visualizzati sopra a un ufficio."
+            )
 
-        col_uff, col_btn = st.columns([1, 2])
+            col_uff, col_btn = st.columns([1, 2])
 
-        with col_uff:
-            if is_admin():
-                # Il direttore puo assegnare a qualsiasi ufficio
-                ufficio_sel = st.selectbox(
-                    "Ufficio:",
-                    options=["-- Seleziona --"] + [f"Ufficio {u}" for u in UFFICI],
-                    key="ufficio_assegna",
-                )
-            else:
-                # Gli altri possono assegnare solo al proprio ufficio
-                proprio_ufficio = st.session_state.ufficio
-                ufficio_sel = f"Ufficio {proprio_ufficio}"
-                st.info(f"Assegnazione a: **{ufficio_sel}** (il tuo ufficio)")
+            with col_uff:
+                if is_super_admin():
+                    ufficio_sel = st.selectbox(
+                        "Ufficio:",
+                        options=["-- Seleziona --"] + [f"Ufficio {u}" for u in UFFICI],
+                        key="ufficio_assegna",
+                    )
+                else:
+                    proprio_ufficio = st.session_state.ufficio
+                    ufficio_sel = f"Ufficio {proprio_ufficio}"
+                    st.info(f"Assegnazione a: **{ufficio_sel}** (il tuo ufficio)")
 
-        records = []
-        for _, row in df_out.iterrows():
-            records.append({
-                "cap": int(row["Numero Capitolo di Spesa"]),
-                "pg": int(row["Numero Piano di Gestione"]),
-                "capitolo_spesa": row["Capitolo di Spesa"],
-                "piano_gestione": row["Piano di Gestione"],
-                "amministrazione": row["Amministrazione"],
-                "centro_responsabilita": row[cdr_col],
-                "missione": row["Missione"],
-                "programma": row["Programma"],
-                "azione": row["Azione"],
-                "titolo": row["Titolo"],
-                "cp_2026": int(row["Legge di Bilancio CP A1"]),
-                "cp_2027": int(row["Legge di Bilancio CP A2"]),
-                "cp_2028": int(row["Legge di Bilancio CP A3"]),
-            })
+            records = []
+            for _, row in df_out.iterrows():
+                records.append({
+                    "cap": int(row["Numero Capitolo di Spesa"]),
+                    "pg": int(row["Numero Piano di Gestione"]),
+                    "capitolo_spesa": row["Capitolo di Spesa"],
+                    "piano_gestione": row["Piano di Gestione"],
+                    "amministrazione": row["Amministrazione"],
+                    "centro_responsabilita": row[cdr_col],
+                    "missione": row["Missione"],
+                    "programma": row["Programma"],
+                    "azione": row["Azione"],
+                    "titolo": row["Titolo"],
+                    "cp_2026": int(row["Legge di Bilancio CP A1"]),
+                    "cp_2027": int(row["Legge di Bilancio CP A2"]),
+                    "cp_2028": int(row["Legge di Bilancio CP A3"]),
+                })
 
-        with col_btn:
-            st.markdown("")
-            st.markdown("")
+            with col_btn:
+                st.markdown("")
+                st.markdown("")
+                if ufficio_sel != "-- Seleziona --":
+                    ufficio_key = ufficio_sel.replace("Ufficio ", "")
+                    n_cap = df_out["Numero Capitolo di Spesa"].nunique()
+                    n_pg = len(df_out)
+
+                    if st.button(
+                        f"Assegna {n_cap} capitoli / {n_pg} PG a {ufficio_sel}",
+                        type="primary",
+                        key="btn_assegna",
+                    ):
+                        mappatura = load_mappatura()
+                        mappatura[ufficio_key] = records
+                        save_mappatura(mappatura)
+                        st.success(
+                            f"**{ufficio_sel}**: salvati **{n_cap}** capitoli e "
+                            f"**{n_pg}** piani gestionali. "
+                            f"(Mappatura precedente sovrascritta.)"
+                        )
+                        st.balloons()
+
             if ufficio_sel != "-- Seleziona --":
                 ufficio_key = ufficio_sel.replace("Ufficio ", "")
-                n_cap = df_out["Numero Capitolo di Spesa"].nunique()
-                n_pg = len(df_out)
-
-                if st.button(
-                    f"Assegna {n_cap} capitoli / {n_pg} PG a {ufficio_sel}",
-                    type="primary",
-                    key="btn_assegna",
-                ):
-                    mappatura = load_mappatura()
-                    mappatura[ufficio_key] = records
-                    save_mappatura(mappatura)
-                    st.success(
-                        f"**{ufficio_sel}**: salvati **{n_cap}** capitoli e "
-                        f"**{n_pg}** piani gestionali. "
-                        f"(Mappatura precedente sovrascritta.)"
+                mappatura = load_mappatura()
+                if ufficio_key in mappatura and mappatura[ufficio_key]:
+                    existing = mappatura[ufficio_key]
+                    caps_ex = len(set(r["cap"] for r in existing))
+                    st.info(
+                        f"{ufficio_sel} ha attualmente **{caps_ex}** capitoli "
+                        f"e **{len(existing)}** PG mappati. "
+                        f"Premendo il pulsante verranno sostituiti."
                     )
-                    st.balloons()
-
-        if ufficio_sel != "-- Seleziona --":
-            ufficio_key = ufficio_sel.replace("Ufficio ", "")
-            mappatura = load_mappatura()
-            if ufficio_key in mappatura and mappatura[ufficio_key]:
-                existing = mappatura[ufficio_key]
-                caps_ex = len(set(r["cap"] for r in existing))
-                st.info(
-                    f"{ufficio_sel} ha attualmente **{caps_ex}** capitoli "
-                    f"e **{len(existing)}** PG mappati. "
-                    f"Premendo il pulsante verranno sostituiti."
-                )
 
     # ===================================================================
     #  SIDEBAR -- Navigatore
@@ -1111,6 +1073,9 @@ if pagina == "Navigatore e Selezione":
 
         st.markdown("---")
         st.subheader("Filtri attivi")
+        if sel_titoli:
+            for t in sel_titoli:
+                st.caption(t)
         if sel_amm:
             for a in sel_amm:
                 st.caption(a)
@@ -1129,7 +1094,7 @@ if pagina == "Navigatore e Selezione":
 
         st.markdown("---")
         st.caption(
-            "Amministrazione > Centro Resp. > "
+            "Titolo > Amministrazione > Centro Resp. > "
             "Missione > Programma > Azione > "
             "Capitolo > PG"
         )
@@ -1158,11 +1123,17 @@ elif pagina == "Mappatura Uffici":
         )
         st.stop()
 
+    # Determina quali uffici l'utente puo vedere
+    if is_super_admin():
+        uffici_visibili = UFFICI
+    else:
+        uffici_visibili = [st.session_state.ufficio]
+
     # --- Riepilogo generale ---
     st.markdown('<div class="mef-page-title" style="font-size:17px">Riepilogo</div>', unsafe_allow_html=True)
 
     summary_rows = []
-    for uff in UFFICI:
+    for uff in uffici_visibili:
         items = mappatura.get(uff, [])
         if items:
             caps = len(set(r["cap"] for r in items))
@@ -1187,7 +1158,7 @@ elif pagina == "Mappatura Uffici":
     df_summary = pd.DataFrame(summary_rows)
     compilati = sum(1 for r in summary_rows if r["Capitoli"] > 0)
     col_s1, col_s2 = st.columns(2)
-    col_s1.metric("Uffici compilati", f"{compilati} / {len(UFFICI)}")
+    col_s1.metric("Uffici compilati", f"{compilati} / {len(uffici_visibili)}")
     col_s2.metric(
         "Totale PG mappati",
         f"{sum(r['Piani Gestionali'] for r in summary_rows):,}",
@@ -1199,24 +1170,28 @@ elif pagina == "Mappatura Uffici":
     st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
     st.markdown('<div class="mef-page-title" style="font-size:17px">Dettaglio per Ufficio</div>', unsafe_allow_html=True)
 
-    uffici_con_dati = [f"Ufficio {u}" for u in UFFICI if mappatura.get(u)]
+    uffici_con_dati = [f"Ufficio {u}" for u in uffici_visibili if mappatura.get(u)]
     if not uffici_con_dati:
         st.info("Nessun ufficio ha ancora completato la mappatura.")
         st.stop()
 
-    vista = st.radio(
-        "Visualizza:",
-        options=["Singolo ufficio", "Tutti gli uffici"],
-        horizontal=True,
-        key="vista_mappa",
-    )
-
-    uffici_da_mostrare = UFFICI
-    if vista == "Singolo ufficio":
-        sel_uff_det = st.selectbox(
-            "Seleziona ufficio:", options=uffici_con_dati, key="det_uff"
+    if is_super_admin() and len(uffici_visibili) > 1:
+        vista = st.radio(
+            "Visualizza:",
+            options=["Singolo ufficio", "Tutti gli uffici"],
+            horizontal=True,
+            key="vista_mappa",
         )
-        uffici_da_mostrare = [sel_uff_det.replace("Ufficio ", "")]
+
+        uffici_da_mostrare = uffici_visibili
+        if vista == "Singolo ufficio":
+            sel_uff_det = st.selectbox(
+                "Seleziona ufficio:", options=uffici_con_dati, key="det_uff"
+            )
+            uffici_da_mostrare = [sel_uff_det.replace("Ufficio ", "")]
+    else:
+        uffici_da_mostrare = uffici_visibili
+        vista = "Singolo ufficio"
 
     for uff in uffici_da_mostrare:
         items = mappatura.get(uff, [])
@@ -1271,108 +1246,114 @@ elif pagina == "Mappatura Uffici":
                 key=f"dl_uff_{uff}",
             )
 
-    # --- Matrice Cap x Ufficio ---
-    st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
-    st.markdown('<div class="mef-page-title" style="font-size:17px">Matrice Capitoli x Uffici</div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="mef-page-subtitle">Quali uffici sono competenti su ciascun capitolo? '
-        'Utile per individuare sovrapposizioni.</div>',
-        unsafe_allow_html=True,
-    )
-
-    all_caps = set()
-    cap_names = {}
-    for uff in UFFICI:
-        for item in mappatura.get(uff, []):
-            cap = item["cap"]
-            all_caps.add(cap)
-            cap_names[cap] = item.get("capitolo_spesa", str(cap))
-
-    if all_caps:
-        matrix_rows = []
-        for cap in sorted(all_caps):
-            row = {"Capitolo": cap, "Descrizione": cap_names.get(cap, "")}
-            for uff in UFFICI:
-                items_uff = mappatura.get(uff, [])
-                caps_uff = set(r["cap"] for r in items_uff)
-                row[f"Uff. {uff}"] = "V" if cap in caps_uff else ""
-            matrix_rows.append(row)
-
-        df_matrix = pd.DataFrame(matrix_rows)
-        st.dataframe(df_matrix, use_container_width=True, hide_index=True)
-
-        csv_matrix = df_matrix.to_csv(index=False, sep=";").encode("utf-8-sig")
-        st.download_button(
-            label="Scarica matrice Cap x Uffici (CSV)",
-            data=csv_matrix,
-            file_name="matrice_capitoli_uffici.csv",
-            mime="text/csv",
-            key="dl_matrice",
-        )
-    else:
-        st.info("Nessun capitolo mappato.")
-
-    # --- Export completo ---
-    st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
-    st.markdown('<div class="mef-page-title" style="font-size:17px">Export completo mappatura</div>', unsafe_allow_html=True)
-
-    all_rows = []
-    for uff in UFFICI:
-        for item in mappatura.get(uff, []):
-            row = {"Ufficio": f"Ufficio {uff}"}
-            row.update(item)
-            all_rows.append(row)
-
-    if all_rows:
-        df_all = pd.DataFrame(all_rows)
-        csv_all = df_all.to_csv(index=False, sep=";").encode("utf-8-sig")
-        st.download_button(
-            label=f"Scarica mappatura completa ({len(df_all):,} righe)",
-            data=csv_all,
-            file_name="mappatura_completa_uffici.csv",
-            mime="text/csv",
-            key="dl_all",
+    # --- Matrice Cap x Ufficio (solo super admin) ---
+    if is_super_admin():
+        st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
+        st.markdown('<div class="mef-page-title" style="font-size:17px">Matrice Capitoli x Uffici</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="mef-page-subtitle">Quali uffici sono competenti su ciascun capitolo? '
+            'Utile per individuare sovrapposizioni.</div>',
+            unsafe_allow_html=True,
         )
 
-    # --- Reset singolo ufficio ---
-    st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
-    st.markdown('<div class="mef-page-title" style="font-size:17px">Resetta mappatura ufficio</div>', unsafe_allow_html=True)
+        all_caps = set()
+        cap_names = {}
+        for uff in UFFICI:
+            for item in mappatura.get(uff, []):
+                cap = item["cap"]
+                all_caps.add(cap)
+                cap_names[cap] = item.get("capitolo_spesa", str(cap))
 
-    col_r1, col_r2 = st.columns([1, 2])
-    with col_r1:
-        if is_admin():
-            uff_reset = st.selectbox(
-                "Ufficio da resettare:",
-                options=["-- Seleziona --"] + [f"Ufficio {u}" for u in UFFICI],
-                key="uff_reset",
+        if all_caps:
+            matrix_rows = []
+            for cap in sorted(all_caps):
+                row = {"Capitolo": cap, "Descrizione": cap_names.get(cap, "")}
+                for uff in UFFICI:
+                    items_uff = mappatura.get(uff, [])
+                    caps_uff = set(r["cap"] for r in items_uff)
+                    row[f"Uff. {uff}"] = "V" if cap in caps_uff else ""
+                matrix_rows.append(row)
+
+            df_matrix = pd.DataFrame(matrix_rows)
+            st.dataframe(df_matrix, use_container_width=True, hide_index=True)
+
+            csv_matrix = df_matrix.to_csv(index=False, sep=";").encode("utf-8-sig")
+            st.download_button(
+                label="Scarica matrice Cap x Uffici (CSV)",
+                data=csv_matrix,
+                file_name="matrice_capitoli_uffici.csv",
+                mime="text/csv",
+                key="dl_matrice",
             )
         else:
-            proprio_ufficio = st.session_state.ufficio
-            uff_reset = f"Ufficio {proprio_ufficio}"
-            st.info(f"Puoi resettare solo: **{uff_reset}**")
+            st.info("Nessun capitolo mappato.")
 
-    with col_r2:
-        st.markdown("")
-        st.markdown("")
-        if uff_reset != "-- Seleziona --":
-            uff_key = uff_reset.replace("Ufficio ", "")
-            if mappatura.get(uff_key):
-                if st.button(
-                    f"Cancella mappatura {uff_reset}",
-                    key="btn_reset",
-                ):
-                    mappatura[uff_key] = []
-                    save_mappatura(mappatura)
-                    st.success(f"Mappatura di {uff_reset} cancellata.")
-                    st.rerun()
+    # --- Export completo (solo super admin) ---
+    if is_super_admin():
+        st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
+        st.markdown('<div class="mef-page-title" style="font-size:17px">Export completo mappatura</div>', unsafe_allow_html=True)
+
+        all_rows = []
+        for uff in UFFICI:
+            for item in mappatura.get(uff, []):
+                row = {"Ufficio": f"Ufficio {uff}"}
+                row.update(item)
+                all_rows.append(row)
+
+        if all_rows:
+            df_all = pd.DataFrame(all_rows)
+            csv_all = df_all.to_csv(index=False, sep=";").encode("utf-8-sig")
+            st.download_button(
+                label=f"Scarica mappatura completa ({len(df_all):,} righe)",
+                data=csv_all,
+                file_name="mappatura_completa_uffici.csv",
+                mime="text/csv",
+                key="dl_all",
+            )
+
+    # --- Reset mappatura (solo DIR., FUN. e super admin) ---
+    user_ruolo = st.session_state.ruolo
+    user_puo_mappare = is_super_admin() or user_ruolo in ["DIR.", "FUN."]
+
+    if user_puo_mappare:
+        st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
+        st.markdown('<div class="mef-page-title" style="font-size:17px">Resetta mappatura ufficio</div>', unsafe_allow_html=True)
+
+        col_r1, col_r2 = st.columns([1, 2])
+        with col_r1:
+            if is_super_admin():
+                uff_reset = st.selectbox(
+                    "Ufficio da resettare:",
+                    options=["-- Seleziona --"] + [f"Ufficio {u}" for u in UFFICI],
+                    key="uff_reset",
+                )
             else:
-                st.caption(f"{uff_reset} non ha mappature.")
+                proprio_ufficio = st.session_state.ufficio
+                uff_reset = f"Ufficio {proprio_ufficio}"
+                st.info(f"Puoi resettare solo: **{uff_reset}**")
+
+        with col_r2:
+            st.markdown("")
+            st.markdown("")
+            if uff_reset != "-- Seleziona --":
+                uff_key = uff_reset.replace("Ufficio ", "")
+                if mappatura.get(uff_key):
+                    if st.button(
+                        f"Cancella mappatura {uff_reset}",
+                        key="btn_reset",
+                    ):
+                        mappatura[uff_key] = []
+                        save_mappatura(mappatura)
+                        st.success(f"Mappatura di {uff_reset} cancellata.")
+                        st.rerun()
+                else:
+                    st.caption(f"{uff_reset} non ha mappature.")
 
     # --- SIDEBAR -- Mappatura ---
     with st.sidebar:
         st.markdown("---")
         st.header("Stato compilazione")
-        for uff in UFFICI:
+        for uff in uffici_visibili:
             items = mappatura.get(uff, [])
             if items:
                 caps = len(set(r["cap"] for r in items))
@@ -1392,13 +1373,14 @@ with st.sidebar:
     st.caption(f"Ufficio: {st.session_state.ufficio}")
     st.caption(f"Ruolo: {st.session_state.ruolo}")
     st.caption(f"Email: {st.session_state.email}")
+    if is_super_admin():
+        st.caption("**SUPER ADMIN**")
 
     if st.button("Logout"):
         auth.logout()
         st.rerun()
 
-    # Pannello admin
-    if is_admin():
+    if is_super_admin():
         st.markdown("---")
         pannello_admin()
 
@@ -1409,15 +1391,11 @@ with st.sidebar:
 
 st.markdown(
     f'<div class="mef-footer">'
-    f'  <span>Ministero dell\'Economia e delle Finanze -- Ragioneria Generale dello Stato</span>'
+    f"  <span>Ministero dell'Economia e delle Finanze -- Ragioneria Generale dello Stato</span>"
     f'  <span>Avviato: {start_time_str} &nbsp;|&nbsp; Legge di Bilancio 2026</span>'
     f'</div>',
     unsafe_allow_html=True,
 )
-
-# ===================================================================
-#  SIDEBAR FOOTER (comune)
-# ===================================================================
 
 with st.sidebar:
     st.markdown("---")
