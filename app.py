@@ -1132,7 +1132,21 @@ elif pagina == "Ricerca per Capitolo":
     df_filtered_cap = df[df["Titolo"].isin(sel_titoli_cap)].copy()
 
     st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
-    st.markdown('<div class="mef-page-title" style="font-size:17px">2. Numero Capitolo</div>', unsafe_allow_html=True)
+    st.markdown('<div class="mef-page-title" style="font-size:17px">2. Amministrazioni</div>', unsafe_allow_html=True)
+    amministrazioni_cap = sorted(df_filtered_cap["Amministrazione"].unique())
+    sel_amm_cap = st.multiselect(
+        "Seleziona una o piu Amministrazioni:",
+        options=amministrazioni_cap,
+        key="sel_amm_cap",
+    )
+    if not sel_amm_cap:
+        st.info("Seleziona almeno un'amministrazione per continuare.")
+        st.stop()
+
+    df_filtered_cap = df_filtered_cap[df_filtered_cap["Amministrazione"].isin(sel_amm_cap)].copy()
+
+    st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
+    st.markdown('<div class="mef-page-title" style="font-size:17px">3. Numero Capitolo</div>', unsafe_allow_html=True)
 
     search_cap = st.text_input(
         "Inserisci uno o piu numeri di capitolo (separati da virgola)",
