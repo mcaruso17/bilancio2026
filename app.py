@@ -784,19 +784,13 @@ pagina = st.sidebar.radio(
 # ==================================================================
 
 if pagina == "Navigatore e Selezione":
-
-        # --- STEP 0 --- TITOLO ---
-    titoli = sorted(df_filtered["Titolo"].unique())
-    if len(titoli) > 1:
-        sel_titoli = st.multiselect(
-            "Filtra per Titolo (opzionale):",
-            options=titoli,
-            key="sel_titolo",
-        )
-        if sel_titoli:
-            df_filtered = df_filtered[
-                df_filtered["Titolo"].isin(sel_titoli)
-            ].copy()
+    st.markdown('<div class="mef-page-title" style="font-size:17px">1. Titolo</div>', unsafe_allow_html=True)
+    titoli = sorted(df["Titolo"].unique())
+    sel_titoli = st.multiselect("Seleziona uno o piu Titoli:",options=titoli,key="sel_titolo",)
+    if not sel_titoli:
+        st.info("Seleziona almeno un titolo per continuare.")
+        st.stop()
+    df_filtered = df[df["Titolo"].isin(sel_titoli)].copy()
 
     # --- STEP 1 --- AMMINISTRAZIONI ---
     st.markdown('<div class="mef-page-title" style="font-size:17px">1. Amministrazioni</div>', unsafe_allow_html=True)
