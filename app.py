@@ -573,9 +573,10 @@ def pagina_carica_utenti():
 def pannello_admin():
     with st.expander("Gestione Utenti - Reset Password"):
         with get_connection() as conn:
-            utenti = conn.execute(
+            rows = conn.execute(
                 "SELECT id, nominativo, email FROM users WHERE attivo = 1"
             ).fetchall()
+            utenti = [dict(r) for r in rows]
 
         utente_scelto = st.selectbox(
             "Seleziona utente",
