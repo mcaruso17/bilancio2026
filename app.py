@@ -368,6 +368,19 @@ tr:nth-child(even) td { background-color: #F5F6F8 !important; }
     letter-spacing: .07em !important; color: rgba(255,255,255,.50) !important;
 }
 [data-testid="stSidebar"] hr { border-color: rgba(255,255,255,.12) !important; }
+/* ---- FIX: Expander dentro sidebar ---- */
+[data-testid="stSidebar"] .streamlit-expanderHeader,
+[data-testid="stSidebar"] details summary {
+    background-color: rgba(255,255,255,0.08) !important;
+    border-color: rgba(255,255,255,0.15) !important;
+    color: rgba(255,255,255,0.82) !important;
+}
+[data-testid="stSidebar"] .streamlit-expanderContent,
+[data-testid="stSidebar"] details > div {
+    background-color: rgba(255,255,255,0.05) !important;
+    border-color: rgba(255,255,255,0.15) !important;
+    color: rgba(255,255,255,0.82) !important;
+}
 [data-testid="stSidebar"] .stRadio label {
     color: rgba(255,255,255,.82) !important;
     font-size: 13px !important;
@@ -634,6 +647,7 @@ with st.sidebar:
     if is_super_admin():
         st.markdown("---")
         pannello_admin()
+
 
 
 # ===================================================================
