@@ -21,7 +21,7 @@ MAPPATURA_FILE = "mappatura_uffici.json"
 
 UFFICI = [
     "1", "2", "3", "4", "5", "6", "7",
-    "8", "9", "10", "11", "12", "13", "CRS I", "CRS II",
+    "8", "9", "10", "11", "12", "13", "CRS I", "CRS II"
 ]
 
 # ======================================================================
@@ -968,7 +968,7 @@ def sezione_export_e_assegnazione(df_out):
                 if ufficio_key in mappatura and mappatura[ufficio_key]:
                     existing = mappatura[ufficio_key]
                     caps_ex = len(set(r["cap"] for r in existing))
-                   st.info(
+                    st.info(
                         f"{ufficio_sel} ha attualmente **{caps_ex}** capitoli "
                         f"e **{len(existing)}** PG mappati. "
                         f"I nuovi verranno aggiunti senza cancellare i precedenti."
