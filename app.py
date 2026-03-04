@@ -584,23 +584,24 @@ def pagina_carica_utenti():
             st.rerun()
 
 def pannello_admin():
-    with st.expander("Gestione Utenti - Reset Password"):
-        with get_connection() as conn:
-            rows = conn.execute(
-                "SELECT id, nominativo, email FROM users WHERE attivo = 1"
-            ).fetchall()
-            utenti = [dict(r) for r in rows]
+    st.header("Gestione Utenti")
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT id, nominativo, email FROM users WHERE attivo = 1"
+        ).fetchall()
+        utenti = [dict(r) for r in rows]
 
-        utente_scelto = st.selectbox(
-            "Seleziona utente",
-            utenti,
-            format_func=lambda u: f"{u['nominativo']} ({u['email']})"
-        )
+    utente_scelto = st.selectbox(
+        "Seleziona utente",
+        utenti,
+        format_func=lambda u: f"{u['nominativo']} ({u['email']})",
+        key="sel_utente_reset",
+    )
 
-        if st.button("Reset Password"):
-            nuova_pw = Authenticator.reset_password(utente_scelto["id"])
-            st.success(f"Nuova password temporanea: {nuova_pw}")
-            st.warning("Comunicala all'utente e poi chiudi questa pagina")
+    if st.button("Reset Password", key="btn_reset_pw"):
+        nuova_pw = Authenticator.reset_password(utente_scelto["id"])
+        st.success(f"Nuova pw: {nuova_pw}")
+        st.warning("Comunicala all'utente!")
 
 # --- Controllo accesso ---
 if not st.session_state.authenticated:
