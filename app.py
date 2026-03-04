@@ -642,7 +642,10 @@ with st.sidebar:
         st.caption("**SUPER ADMIN**")
 
     if st.button("Logout"):
-        auth.logout()
+        for key in ["authenticated", "user_id", "nominativo", "email",
+                     "ruolo", "ufficio", "deve_cambiare_password"]:
+            if key in st.session_state:
+                del st.session_state[key]
         st.rerun()
 
     if is_super_admin():
