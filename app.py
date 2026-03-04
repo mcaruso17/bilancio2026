@@ -20,8 +20,8 @@ BILANCIO_CSV = "bilancio2026.csv"
 MAPPATURA_FILE = "mappatura_uffici.json"
 
 UFFICI = [
-    "I", "II", "III", "IV", "V", "VI", "VII",
-    "VIII", "IX", "X", "XI", "XII", "XIII",
+    "1", "2", "3", "4", "5", "6", "7",
+    "8", "9", "10", "11", "12", "13", "CRS I", "CRS II",
 ]
 
 # ======================================================================
