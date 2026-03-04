@@ -559,9 +559,17 @@ def pagina_carica_utenti():
             with get_connection() as conn:
                 try:
                     conn.execute(
-                        """INSERT OR IGNORE INTO users
-                        (nominativo, email, password_hash, ruolo, ufficio, stanza, interno, cellulare)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                        """INSERT INTO users
+                        (nominativo, email, password_hash, ruolo, ufficio, stanza, interno, cellulare, deve_cambiare_password)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+                        ON CONFLICT(email) DO UPDATE SET
+                            password_hash = excluded.password_hash,
+                            ruolo = excluded.ruolo,
+                            ufficio = excluded.ufficio,
+                            stanza = excluded.stanza,
+                            interno = excluded.interno,
+                            cellulare = excluded.cellulare,
+                            deve_cambiare_password = 1""",
                         (
                             nominativo, email, stored,
                             riga["ruolo"], str(riga["ufficio"]),
