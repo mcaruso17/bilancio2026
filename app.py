@@ -4,7 +4,7 @@ import json
 import os
 from datetime import datetime
 from auth import Authenticator
-from permissions import puo_modificare, is_admin
+from permission import puo_modificare, is_admin
 from database import init_database, get_connection
 from config import ADMIN_USERNAME, ADMIN_PASSWORD
 from load_users import genera_email, genera_password
