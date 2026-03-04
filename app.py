@@ -947,19 +947,20 @@ def sezione_export_e_assegnazione(df_out):
                     n_pg = len(df_out)
 
                     if st.button(
-                        f"Assegna {n_cap} capitoli / {n_pg} PG a {ufficio_sel}",
+                        f"Aggiungi {n_cap} capitoli / {n_pg} PG a {ufficio_sel}",
                         type="primary",
                         key="btn_assegna",
                     ):
                         mappatura = load_mappatura()
-                        mappatura[ufficio_key] = records
+                        esistenti = mappatura.get(ufficio_key, [])
+                        chiavi_esistenti = {(r["cap"], r["pg"]) for r in esistenti}
+                        nuovi = [r for r in records if (r["cap"], r["pg"]) not in chiavi_esistenti]
+                        mappatura[ufficio_key] = esistenti + nuovi
                         save_mappatura(mappatura)
                         st.success(
-                            f"**{ufficio_sel}**: salvati **{n_cap}** capitoli e "
-                            f"**{n_pg}** piani gestionali. "
-                            f"(Mappatura precedente sovrascritta.)"
+                            f"**{ufficio_sel}**: aggiunti **{len(nuovi)}** nuovi PG "
+                            f"(su {n_pg} selezionati, {n_pg - len(nuovi)} gia presenti)."
                         )
-                        st.balloons()
 
             if ufficio_sel != "-- Seleziona --":
                 ufficio_key = ufficio_sel.replace("Ufficio ", "")
@@ -967,10 +968,10 @@ def sezione_export_e_assegnazione(df_out):
                 if ufficio_key in mappatura and mappatura[ufficio_key]:
                     existing = mappatura[ufficio_key]
                     caps_ex = len(set(r["cap"] for r in existing))
-                    st.info(
+                   st.info(
                         f"{ufficio_sel} ha attualmente **{caps_ex}** capitoli "
                         f"e **{len(existing)}** PG mappati. "
-                        f"Premendo il pulsante verranno sostituiti."
+                        f"I nuovi verranno aggiunti senza cancellare i precedenti."
                     )
 
 
@@ -1220,6 +1221,66 @@ elif pagina == "Ricerca per Capitolo":
 
     visualizza_capitoli(df_out_cap)
     sezione_export_e_assegnazione(df_out_cap)
+
+    # --- Rimuovi capitoli dalla mappatura ---
+    user_ruolo = st.session_state.ruolo
+    user_puo_mappare = is_super_admin() or user_ruolo in ["DIR.", "FUN."]
+
+    if user_puo_mappare:
+        st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
+        st.markdown('<div class="mef-page-title" style="font-size:17px">Rimuovi capitoli dalla mappatura</div>', unsafe_allow_html=True)
+        st.markdown(
+            "Rimuove i capitoli trovati sopra dalla mappatura dell'ufficio selezionato."
+        )
+
+        col_rm1, col_rm2 = st.columns([1, 2])
+
+        with col_rm1:
+            if is_super_admin():
+                uff_rimuovi = st.selectbox(
+                    "Rimuovi da ufficio:",
+                    options=["-- Seleziona --"] + [f"Ufficio {u}" for u in UFFICI],
+                    key="uff_rimuovi",
+                )
+            else:
+                proprio_ufficio = st.session_state.ufficio
+                uff_rimuovi = f"Ufficio {proprio_ufficio}"
+                st.info(f"Rimozione da: **{uff_rimuovi}**")
+
+        with col_rm2:
+            st.markdown("")
+            st.markdown("")
+            if uff_rimuovi != "-- Seleziona --":
+                uff_rm_key = uff_rimuovi.replace("Ufficio ", "")
+                mappatura = load_mappatura()
+                esistenti = mappatura.get(uff_rm_key, [])
+
+                caps_da_rimuovere = set(df_out_cap["Numero Capitolo di Spesa"].unique())
+                presenti = [r for r in esistenti if r["cap"] in caps_da_rimuovere]
+
+                if not presenti:
+                    st.caption(
+                        f"Nessuno dei capitoli cercati e presente nella mappatura di {uff_rimuovi}."
+                    )
+                else:
+                    caps_presenti = len(set(r["cap"] for r in presenti))
+                    st.warning(
+                        f"Trovati **{caps_presenti}** capitoli ({len(presenti)} PG) "
+                        f"di {uff_rimuovi} corrispondenti alla ricerca."
+                    )
+
+                    if st.button(
+                        f"Rimuovi {caps_presenti} capitoli / {len(presenti)} PG da {uff_rimuovi}",
+                        key="btn_rimuovi",
+                    ):
+                        dopo = [r for r in esistenti if r["cap"] not in caps_da_rimuovere]
+                        mappatura[uff_rm_key] = dopo
+                        save_mappatura(mappatura)
+                        st.success(
+                            f"Rimossi **{len(presenti)}** PG da {uff_rimuovi}. "
+                            f"Restano **{len(dopo)}** PG."
+                        )
+                        st.rerun()
 
     # --- SIDEBAR aggiuntiva ---
     with st.sidebar:
