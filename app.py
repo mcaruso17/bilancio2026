@@ -344,7 +344,7 @@ tr:nth-child(even) td { background-color: #F5F6F8 !important; }
 }
 
 /* ---- BUTTONS ---- */
-.stButton > button[kind="primary"],
+.stButton > button,
 .stDownloadButton > button {
     background-color: #1D3D8F !important;
     color: #FFFFFF !important;
@@ -354,7 +354,7 @@ tr:nth-child(even) td { background-color: #F5F6F8 !important; }
     font-weight: 600 !important;
     letter-spacing: .03em !important;
 }
-.stButton > button[kind="primary"]:hover,
+.stButton > button:hover,
 .stDownloadButton > button:hover {
     background-color: #132B6B !important;
 }
