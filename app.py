@@ -3,6 +3,11 @@ import pandas as pd
 import json
 import os
 from datetime import datetime
+from auth import Authenticator
+from permissions import puo_modificare, is_admin
+from database import init_database, get_connection
+from config import ADMIN_USERNAME, ADMIN_PASSWORD
+from load_users import genera_email, genera_password
 
 start_time = datetime.now()
 start_time_str = start_time.strftime("%d/%m/%Y %H:%M:%S")
@@ -22,6 +27,10 @@ UFFICI = [
 # ======================================================================
 #          FINE IMPOSTAZIONI - DA QUI IN GIU NON TOCCARE
 # ======================================================================
+
+# Inizializza database e autenticatore
+init_database()
+auth = Authenticator()
 
 st.set_page_config(
     page_title="Navigatore LdB 2026 -- Ragioneria Generale dello Stato",
@@ -441,6 +450,192 @@ st.markdown(MEF_CSS, unsafe_allow_html=True)
 
 
 # ===================================================================
+#  AUTENTICAZIONE
+# ===================================================================
+
+def pagina_login():
+    """Mostra il form di login"""
+    st.markdown("""
+    <div class="mef-header">
+      <div class="mef-header-inner">
+        <div>
+          <div class="mef-header-ministry">Ministero dell'Economia e delle Finanze</div>
+          <div class="mef-header-dept">Ragioneria Generale dello Stato</div>
+          <div class="mef-header-sub">Navigatore Legge di Bilancio</div>
+        </div>
+        <div class="mef-header-right">
+          <div class="mef-app-name">LdB 2026</div>
+          <div class="mef-app-tagline">Navigatore e Mappatura Uffici</div>
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown('<div class="mef-page-title">Accesso Area Riservata</div>', unsafe_allow_html=True)
+    st.markdown('<div class="mef-page-subtitle">Inserisci le credenziali fornite dall\'amministratore</div>', unsafe_allow_html=True)
+
+    email = st.text_input("Email")
+    password = st.text_input("Password", type="password")
+
+    if st.button("Accedi"):
+        successo, messaggio = auth.login(email, password)
+        if successo:
+            st.rerun()
+        else:
+            st.error(messaggio)
+
+def pagina_cambio_password():
+    """Forza il cambio password al primo accesso"""
+    st.markdown("""
+    <div class="mef-header">
+      <div class="mef-header-inner">
+        <div>
+          <div class="mef-header-ministry">Ministero dell'Economia e delle Finanze</div>
+          <div class="mef-header-dept">Ragioneria Generale dello Stato</div>
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown('<div class="mef-page-title">Cambio Password Obbligatorio</div>', unsafe_allow_html=True)
+    st.warning("Devi cambiare la password prima di continuare")
+
+    attuale = st.text_input("Password attuale", type="password")
+    nuova = st.text_input("Nuova password", type="password")
+    conferma = st.text_input("Conferma password", type="password")
+
+    if st.button("Cambia password"):
+        if nuova != conferma:
+            st.error("Le password non coincidono")
+        else:
+            successo, messaggio = auth.cambia_password(attuale, nuova)
+            if successo:
+                st.success(messaggio)
+                st.rerun()
+            else:
+                st.error(messaggio)
+
+def pagina_carica_utenti():
+    """Permette all'admin di caricare utenti da Excel"""
+    st.markdown('<div class="mef-page-title">Caricamento Utenti</div>', unsafe_allow_html=True)
+    st.markdown('<div class="mef-page-subtitle">Area riservata all\'amministratore del sistema</div>', unsafe_allow_html=True)
+
+    if "admin_autenticato" not in st.session_state:
+        st.session_state.admin_autenticato = False
+    if "credenziali_generate" not in st.session_state:
+        st.session_state.credenziali_generate = None
+
+    if not st.session_state.admin_autenticato:
+        username = st.text_input("Username admin")
+        password = st.text_input("Password admin", type="password")
+        if st.button("Accedi come admin"):
+            if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+                st.session_state.admin_autenticato = True
+                st.rerun()
+            else:
+                st.error("Credenziali admin non valide")
+        return
+
+    st.success("Accesso admin confermato")
+
+    if st.session_state.credenziali_generate is not None:
+        st.subheader("Credenziali generate")
+        df_cred = pd.DataFrame(st.session_state.credenziali_generate)
+        st.dataframe(df_cred)
+        st.download_button(
+            "Scarica credenziali CSV",
+            df_cred.to_csv(index=False),
+            "credenziali_temporanee.csv",
+            "text/csv",
+        )
+        st.warning("Scarica il file, distribuisci le password e poi eliminalo!")
+        if st.button("Pulisci credenziali dalla schermata"):
+            st.session_state.credenziali_generate = None
+            st.rerun()
+        return
+
+    file = st.file_uploader("Carica il file Excel del personale", type=["xlsx"])
+
+    if file and st.button("Carica utenti"):
+        df_users = pd.read_excel(file)
+        df_users.columns = df_users.columns.str.strip().str.lower()
+        df_users = df_users.dropna(subset=["nominativo"])
+        credenziali = []
+
+        for _, riga in df_users.iterrows():
+            nominativo = riga["nominativo"]
+            email = genera_email(nominativo)
+            password_utente = genera_password()
+
+            pw_hash, salt = Authenticator.hash_password(password_utente)
+            stored = f"{pw_hash}:{salt}"
+
+            with get_connection() as conn:
+                try:
+                    conn.execute(
+                        """INSERT OR IGNORE INTO users
+                        (nominativo, email, password_hash, ruolo, ufficio, stanza, interno, cellulare)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                        (
+                            nominativo, email, stored,
+                            riga["ruolo"], str(riga["ufficio"]),
+                            str(riga.get("stanza", "")),
+                            str(riga.get("interno", "")),
+                            str(riga.get("cellulare", ""))
+                        )
+                    )
+                    credenziali.append({
+                        "nominativo": nominativo,
+                        "email": email,
+                        "password": password_utente
+                    })
+                except Exception as e:
+                    st.error(f"Errore per {nominativo}: {e}")
+
+        if credenziali:
+            st.session_state.credenziali_generate = credenziali
+            st.success(f"Caricati {len(credenziali)} utenti!")
+            st.rerun()
+
+def pannello_admin():
+    """Pannello per il direttore: reset password"""
+    with st.expander("Gestione Utenti - Reset Password"):
+        with get_connection() as conn:
+            utenti = conn.execute(
+                "SELECT id, nominativo, email FROM users WHERE attivo = 1"
+            ).fetchall()
+
+        utente_scelto = st.selectbox(
+            "Seleziona utente",
+            utenti,
+            format_func=lambda u: f"{u['nominativo']} ({u['email']})"
+        )
+
+        if st.button("Reset Password"):
+            nuova_pw = Authenticator.reset_password(utente_scelto["id"])
+            st.success(f"Nuova password temporanea: {nuova_pw}")
+            st.warning("Comunicala all'utente e poi chiudi questa pagina")
+
+# --- Controllo accesso ---
+if not st.session_state.authenticated:
+    tab_login, tab_admin = st.tabs(["Login", "Carica Utenti"])
+    with tab_login:
+        pagina_login()
+    with tab_admin:
+        pagina_carica_utenti()
+    st.stop()
+
+if st.session_state.deve_cambiare_password:
+    pagina_cambio_password()
+    st.stop()
+
+
+# ===================================================================
+#  DA QUI IN GIU: UTENTE AUTENTICATO
+# ===================================================================
+
+
+# ===================================================================
 #  INSTITUTIONAL HEADER
 # ===================================================================
 
@@ -608,8 +803,6 @@ if pagina == "Navigatore e Selezione":
     st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
     st.markdown('<div class="mef-page-title" style="font-size:17px">2. Centro Responsabilita (Dipartimento)</div>', unsafe_allow_html=True)
 
-    cdr_options = sorted(df_filtered["Centro Responsabilita"].unique()) if "Centro Responsabilita" in df_filtered.columns else sorted(df_filtered.get("Centro Responsabilit\u00e0", pd.Series(dtype=str)).unique())
-    # Handle both column name variants
     cdr_col = "Centro Responsabilita" if "Centro Responsabilita" in df_filtered.columns else "Centro Responsabilit\u00e0"
     cdr_options = sorted(df_filtered[cdr_col].unique())
 
@@ -837,18 +1030,24 @@ if pagina == "Navigatore e Selezione":
     # --- Tab Assegna Ufficio ---
     with tab_ufficio:
         st.markdown(
-            "Assegna **tutti** i capitoli e PG visualizzati sopra a un ufficio. "
-            "Se l'ufficio ha gia una mappatura, verra **sovrascritta**."
+            "Assegna **tutti** i capitoli e PG visualizzati sopra a un ufficio."
         )
 
         col_uff, col_btn = st.columns([1, 2])
 
         with col_uff:
-            ufficio_sel = st.selectbox(
-                "Ufficio:",
-                options=["-- Seleziona --"] + [f"Ufficio {u}" for u in UFFICI],
-                key="ufficio_assegna",
-            )
+            if is_admin():
+                # Il direttore puo assegnare a qualsiasi ufficio
+                ufficio_sel = st.selectbox(
+                    "Ufficio:",
+                    options=["-- Seleziona --"] + [f"Ufficio {u}" for u in UFFICI],
+                    key="ufficio_assegna",
+                )
+            else:
+                # Gli altri possono assegnare solo al proprio ufficio
+                proprio_ufficio = st.session_state.ufficio
+                ufficio_sel = f"Ufficio {proprio_ufficio}"
+                st.info(f"Assegnazione a: **{ufficio_sel}** (il tuo ufficio)")
 
         records = []
         for _, row in df_out.iterrows():
@@ -1145,11 +1344,17 @@ elif pagina == "Mappatura Uffici":
 
     col_r1, col_r2 = st.columns([1, 2])
     with col_r1:
-        uff_reset = st.selectbox(
-            "Ufficio da resettare:",
-            options=["-- Seleziona --"] + [f"Ufficio {u}" for u in UFFICI],
-            key="uff_reset",
-        )
+        if is_admin():
+            uff_reset = st.selectbox(
+                "Ufficio da resettare:",
+                options=["-- Seleziona --"] + [f"Ufficio {u}" for u in UFFICI],
+                key="uff_reset",
+            )
+        else:
+            proprio_ufficio = st.session_state.ufficio
+            uff_reset = f"Ufficio {proprio_ufficio}"
+            st.info(f"Puoi resettare solo: **{uff_reset}**")
+
     with col_r2:
         st.markdown("")
         st.markdown("")
@@ -1178,6 +1383,28 @@ elif pagina == "Mappatura Uffici":
                 st.caption(f"Uff. {uff}: {caps} cap., {len(items)} PG")
             else:
                 st.caption(f"Uff. {uff}: da compilare")
+
+
+# ===================================================================
+#  SIDEBAR -- INFO UTENTE E ADMIN (comune a tutte le pagine)
+# ===================================================================
+
+with st.sidebar:
+    st.markdown("---")
+    st.header("Utente connesso")
+    st.markdown(f"**{st.session_state.nominativo}**")
+    st.caption(f"Ufficio: {st.session_state.ufficio}")
+    st.caption(f"Ruolo: {st.session_state.ruolo}")
+    st.caption(f"Email: {st.session_state.email}")
+
+    if st.button("Logout"):
+        auth.logout()
+        st.rerun()
+
+    # Pannello admin
+    if is_admin():
+        st.markdown("---")
+        pannello_admin()
 
 
 # ===================================================================
