@@ -1225,6 +1225,16 @@ if pagina == "Cerca Piano Gestionale":
     # --- FILTRI A CASCATA (tutti opzionali, in expander) ---
     st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
 
+    # Pulsante Reset
+    col_filtri_label, col_filtri_reset = st.columns([4, 1])
+    with col_filtri_reset:
+        if st.button("Reset filtri", key="btn_reset_filtri"):
+            for k in ["sel_titolo", "sel_amm", "sel_cdr", "sel_miss",
+                       "sel_prog", "sel_azione", "search_cap_num", "search_pg"]:
+                if k in st.session_state:
+                    del st.session_state[k]
+            st.rerun()
+
     df_filtered = df_anno.copy()
 
     # Variabili per tracciare i filtri attivi (per la sidebar)
