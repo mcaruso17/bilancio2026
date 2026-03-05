@@ -987,8 +987,10 @@ cdr_col = "Centro Responsabilita" if "Centro Responsabilita" in df.columns else 
 #     FUNZIONE COMUNE: VISUALIZZA CAPITOLI (usata da entrambe le ricerche)
 # ==================================================================
 
-def visualizza_capitoli(df_out):
-    """Mostra i capitoli con expander e metriche"""
+def visualizza_capitoli(df_out, mostra_selezione=False):
+    """Mostra i capitoli con expander e metriche.
+    Se mostra_selezione=True, aggiunge checkbox per selezionare i capitoli
+    e restituisce la lista dei numeri capitolo selezionati."""
     n_cap_out = df_out["Numero Capitolo di Spesa"].nunique()
     n_pg_out = len(df_out)
     totale_cp = df_out["Legge di Bilancio CP A1"].sum()
@@ -997,6 +999,27 @@ def visualizza_capitoli(df_out):
     col_m1.metric("Capitoli di Spesa", f"{n_cap_out:,}")
     col_m2.metric("Piani Gestionali", f"{n_pg_out:,}")
     col_m3.metric("Totale CP Anno 1", fmt_eur(totale_cp))
+
+    # --- Pulsanti Seleziona/Deseleziona tutti ---
+    user_ruolo = st.session_state.get("ruolo", "")
+    user_puo_mappare = mostra_selezione and (is_super_admin() or user_ruolo in ["DIR.", "FUN."])
+
+    all_caps = sorted(df_out["Numero Capitolo di Spesa"].unique())
+
+    if user_puo_mappare:
+        col_sel, col_desel, col_spacer = st.columns([1, 1, 3])
+        with col_sel:
+            if st.button("Seleziona tutti", key="btn_sel_tutti"):
+                for cap in all_caps:
+                    st.session_state[f"chk_cap_{cap}"] = True
+                st.rerun()
+        with col_desel:
+            if st.button("Deseleziona tutti", key="btn_desel_tutti"):
+                for cap in all_caps:
+                    st.session_state[f"chk_cap_{cap}"] = False
+                st.rerun()
+
+    caps_selezionati = []
 
     for amm in sorted(df_out["Amministrazione"].unique()):
         df_amm = df_out[df_out["Amministrazione"] == amm]
@@ -1010,61 +1033,81 @@ def visualizza_capitoli(df_out):
             nome_cap = df_cap["Capitolo di Spesa"].iloc[0]
             tot_cap = df_cap["Legge di Bilancio CP A1"].sum()
 
-            with st.expander(
-                f"Cap. {num_cap} -- {nome_cap}  |  {fmt_eur(tot_cap)}",
-                expanded=False,
-            ):
-                c1, c2 = st.columns(2)
-                with c1:
-                    st.markdown(f"**Titolo:** {df_cap['Titolo'].iloc[0]}")
-                    st.markdown(f"**Missione:** {df_cap['Missione'].iloc[0]}")
-                with c2:
-                    st.markdown(f"**Programma:** {df_cap['Programma'].iloc[0]}")
-                    st.markdown(
-                        f"**Centro Resp.:** "
-                        f"{', '.join(df_cap[cdr_col].unique())}"
+            # Checkbox + Expander sulla stessa riga
+            if user_puo_mappare:
+                col_chk, col_exp = st.columns([0.05, 0.95])
+                with col_chk:
+                    checked = st.checkbox(
+                        "sel",
+                        value=st.session_state.get(f"chk_cap_{num_cap}", False),
+                        key=f"chk_cap_{num_cap}",
+                        label_visibility="collapsed",
+                    )
+                    if checked:
+                        caps_selezionati.append(num_cap)
+                container = col_exp
+            else:
+                container = st.container()
+
+            with container:
+                with st.expander(
+                    f"Cap. {num_cap} -- {nome_cap}  |  {fmt_eur(tot_cap)}",
+                    expanded=False,
+                ):
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        st.markdown(f"**Titolo:** {df_cap['Titolo'].iloc[0]}")
+                        st.markdown(f"**Missione:** {df_cap['Missione'].iloc[0]}")
+                    with c2:
+                        st.markdown(f"**Programma:** {df_cap['Programma'].iloc[0]}")
+                        st.markdown(
+                            f"**Centro Resp.:** "
+                            f"{', '.join(df_cap[cdr_col].unique())}"
+                        )
+
+                    display_cols = [
+                        "Numero Piano di Gestione", "Piano di Gestione", "Azione",
+                        "Legge di Bilancio CP A1", "Legge di Bilancio CP A2",
+                        "Legge di Bilancio CP A3", "Legge di Bilancio CS A1",
+                        "Legge di Bilancio RS A1",
+                    ]
+                    display_cols = [c for c in display_cols if c in df_cap.columns]
+                    df_display = (
+                        df_cap[display_cols]
+                        .copy()
+                        .sort_values("Numero Piano di Gestione")
                     )
 
-                display_cols = [
-                    "Numero Piano di Gestione", "Piano di Gestione", "Azione",
-                    "Legge di Bilancio CP A1", "Legge di Bilancio CP A2",
-                    "Legge di Bilancio CP A3", "Legge di Bilancio CS A1",
-                    "Legge di Bilancio RS A1",
-                ]
-                display_cols = [c for c in display_cols if c in df_cap.columns]
-                df_display = (
-                    df_cap[display_cols]
-                    .copy()
-                    .sort_values("Numero Piano di Gestione")
-                )
+                    rename_map = {
+                        "Numero Piano di Gestione": "N. PG",
+                        "Piano di Gestione": "Descrizione PG",
+                        "Azione": "Azione",
+                        "Legge di Bilancio CP A1": "CP Anno 1",
+                        "Legge di Bilancio CP A2": "CP Anno 2",
+                        "Legge di Bilancio CP A3": "CP Anno 3",
+                        "Legge di Bilancio CS A1": "CS Anno 1",
+                        "Legge di Bilancio RS A1": "RS Anno 1",
+                    }
+                    df_display = df_display.rename(columns=rename_map)
+                    for col in ["CP Anno 1", "CP Anno 2", "CP Anno 3", "CS Anno 1", "RS Anno 1"]:
+                        if col in df_display.columns:
+                            df_display[col] = df_display[col].apply(fmt_eur)
 
-                rename_map = {
-                    "Numero Piano di Gestione": "N. PG",
-                    "Piano di Gestione": "Descrizione PG",
-                    "Azione": "Azione",
-                    "Legge di Bilancio CP A1": "CP Anno 1",
-                    "Legge di Bilancio CP A2": "CP Anno 2",
-                    "Legge di Bilancio CP A3": "CP Anno 3",
-                    "Legge di Bilancio CS A1": "CS Anno 1",
-                    "Legge di Bilancio RS A1": "RS Anno 1",
-                }
-                df_display = df_display.rename(columns=rename_map)
-                for col in ["CP Anno 1", "CP Anno 2", "CP Anno 3", "CS Anno 1", "RS Anno 1"]:
-                    if col in df_display.columns:
-                        df_display[col] = df_display[col].apply(fmt_eur)
+                    st.dataframe(df_display, use_container_width=True, hide_index=True)
 
-                st.dataframe(df_display, use_container_width=True, hide_index=True)
+                    st.markdown(
+                        f"**Totale Cap. {num_cap}:** "
+                        f"CP A1 = {fmt_eur(df_cap['Legge di Bilancio CP A1'].sum())} | "
+                        f"CP A2 = {fmt_eur(df_cap['Legge di Bilancio CP A2'].sum())} | "
+                        f"CP A3 = {fmt_eur(df_cap['Legge di Bilancio CP A3'].sum())}"
+                    )
 
-                st.markdown(
-                    f"**Totale Cap. {num_cap}:** "
-                    f"CP A1 = {fmt_eur(df_cap['Legge di Bilancio CP A1'].sum())} | "
-                    f"CP A2 = {fmt_eur(df_cap['Legge di Bilancio CP A2'].sum())} | "
-                    f"CP A3 = {fmt_eur(df_cap['Legge di Bilancio CP A3'].sum())}"
-                )
+    return caps_selezionati
 
 
-def sezione_export_e_assegnazione(df_out):
-    """Mostra le tab di export CSV e assegnazione ufficio"""
+def sezione_export_e_assegnazione(df_out, caps_selezionati=None):
+    """Mostra le tab di export CSV e assegnazione ufficio.
+    caps_selezionati: lista di numeri capitolo scelti dall'utente via checkbox."""
     st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
 
     user_ruolo = st.session_state.ruolo
@@ -1100,30 +1143,19 @@ def sezione_export_e_assegnazione(df_out):
 
     if user_puo_mappare:
         with tab_ufficio:
-            st.markdown(
-                "Seleziona i capitoli da assegnare e l'ufficio di destinazione."
-            )
-
-            # --- Selezione capitoli ---
-            cap_list = sorted(df_out["Numero Capitolo di Spesa"].unique())
-            cap_options_map = {}
-            for num_cap in cap_list:
-                nome = df_out[df_out["Numero Capitolo di Spesa"] == num_cap]["Capitolo di Spesa"].iloc[0]
-                label = f"Cap. {num_cap} -- {nome}"
-                cap_options_map[label] = num_cap
-
-            sel_caps_assegna = st.multiselect(
-                "Capitoli da assegnare:",
-                options=list(cap_options_map.keys()),
-                default=list(cap_options_map.keys()),
-                key="sel_caps_assegna",
-            )
-
-            if not sel_caps_assegna:
-                st.info("Seleziona almeno un capitolo da assegnare.")
+            if not caps_selezionati:
+                st.info(
+                    "Seleziona almeno un capitolo usando le checkbox accanto ai risultati, "
+                    "oppure clicca **Seleziona tutti**."
+                )
             else:
-                sel_cap_nums = [cap_options_map[l] for l in sel_caps_assegna]
-                df_assegna = df_out[df_out["Numero Capitolo di Spesa"].isin(sel_cap_nums)].copy()
+                df_assegna = df_out[
+                    df_out["Numero Capitolo di Spesa"].isin(caps_selezionati)
+                ].copy()
+
+                n_cap = len(caps_selezionati)
+                n_pg = len(df_assegna)
+                st.success(f"**{n_cap}** capitoli selezionati ({n_pg} PG)")
 
                 col_uff, col_btn = st.columns([1, 2])
 
@@ -1162,8 +1194,6 @@ def sezione_export_e_assegnazione(df_out):
                     st.markdown("")
                     if ufficio_sel != "-- Seleziona --":
                         ufficio_key = ufficio_sel.replace("Ufficio ", "")
-                        n_cap = len(sel_cap_nums)
-                        n_pg = len(df_assegna)
 
                         if st.button(
                             f"Aggiungi {n_cap} capitoli / {n_pg} PG a {ufficio_sel}",
@@ -1257,10 +1287,15 @@ if pagina == "Cerca Piano Gestionale":
     col_filtri_label, col_filtri_reset = st.columns([4, 1])
     with col_filtri_reset:
         if st.button("Reset filtri", key="btn_reset_filtri"):
-            for k in ["sel_titolo", "sel_amm", "sel_cdr", "sel_miss",
-                       "sel_prog", "sel_azione", "search_cap_num",
-                       "search_cap_text", "search_pg_text",
-                       "filtro_amm_risultati", "sel_caps_assegna"]:
+            keys_to_clear = ["sel_titolo", "sel_amm", "sel_cdr", "sel_miss",
+                             "sel_prog", "sel_azione", "search_cap_num",
+                             "search_cap_text", "search_pg_text",
+                             "filtro_amm_risultati"]
+            # Pulisci anche tutte le checkbox capitoli
+            for k in list(st.session_state.keys()):
+                if k.startswith("chk_cap_"):
+                    keys_to_clear.append(k)
+            for k in keys_to_clear:
                 if k in st.session_state:
                     del st.session_state[k]
             st.rerun()
@@ -1428,8 +1463,8 @@ if pagina == "Cerca Piano Gestionale":
             st.warning("Nessun risultato per le amministrazioni selezionate.")
             st.stop()
 
-    visualizza_capitoli(df_out)
-    sezione_export_e_assegnazione(df_out)
+    caps_selezionati = visualizza_capitoli(df_out, mostra_selezione=True)
+    sezione_export_e_assegnazione(df_out, caps_selezionati=caps_selezionati)
 
     # --- Rimuovi capitoli dalla mappatura ---
     user_ruolo = st.session_state.ruolo
