@@ -1002,7 +1002,7 @@ def visualizza_capitoli(df_out, mostra_selezione=False):
 
     # --- Pulsanti Seleziona/Deseleziona tutti ---
     user_ruolo = st.session_state.get("ruolo", "")
-    user_puo_mappare = mostra_selezione and (is_super_admin() or user_ruolo in ["DIR.", "FUN."])
+    user_puo_mappare = mostra_selezione and (is_super_admin() or user_ruolo in ["DIR.", "FUN.", "ASS."])
 
     # Costruisci tutte le chiavi checkbox PG (amm_hash + cap + pg)
     all_chk_keys = []
@@ -1131,7 +1131,7 @@ def sezione_export_e_assegnazione(df_out, pg_selezionati=None):
     st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
 
     user_ruolo = st.session_state.ruolo
-    user_puo_mappare = is_super_admin() or user_ruolo in ["DIR.", "FUN."]
+    user_puo_mappare = is_super_admin() or user_ruolo in ["DIR.", "FUN.", "ASS."]
 
     if user_puo_mappare:
         tab_csv, tab_ufficio = st.tabs(["Esporta CSV", "Assegna a Ufficio"])
@@ -1493,7 +1493,7 @@ if pagina == "Cerca Piano Gestionale":
 
     # --- Rimuovi capitoli dalla mappatura ---
     user_ruolo = st.session_state.ruolo
-    user_puo_mappare = is_super_admin() or user_ruolo in ["DIR.", "FUN."]
+    user_puo_mappare = is_super_admin() or user_ruolo in ["DIR.", "FUN.", "ASS."]
 
     if user_puo_mappare:
         st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
@@ -2231,7 +2231,7 @@ elif pagina == "Mappatura Uffici":
 
     # --- Reset mappatura ---
     user_ruolo = st.session_state.ruolo
-    user_puo_mappare = is_super_admin() or user_ruolo in ["DIR.", "FUN."]
+    user_puo_mappare = is_super_admin() or user_ruolo in ["DIR.", "FUN.", "ASS."]
 
     if user_puo_mappare:
         st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
