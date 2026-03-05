@@ -1101,76 +1101,97 @@ def sezione_export_e_assegnazione(df_out):
     if user_puo_mappare:
         with tab_ufficio:
             st.markdown(
-                "Assegna **tutti** i capitoli e PG visualizzati sopra a un ufficio."
+                "Seleziona i capitoli da assegnare e l'ufficio di destinazione."
             )
 
-            col_uff, col_btn = st.columns([1, 2])
+            # --- Selezione capitoli ---
+            cap_list = sorted(df_out["Numero Capitolo di Spesa"].unique())
+            cap_options_map = {}
+            for num_cap in cap_list:
+                nome = df_out[df_out["Numero Capitolo di Spesa"] == num_cap]["Capitolo di Spesa"].iloc[0]
+                label = f"Cap. {num_cap} -- {nome}"
+                cap_options_map[label] = num_cap
 
-            with col_uff:
-                if is_super_admin():
-                    ufficio_sel = st.selectbox(
-                        "Ufficio:",
-                        options=["-- Seleziona --"] + [f"Ufficio {u}" for u in UFFICI],
-                        key="ufficio_assegna",
-                    )
-                else:
-                    proprio_ufficio = st.session_state.ufficio
-                    ufficio_sel = f"Ufficio {proprio_ufficio}"
-                    st.info(f"Assegnazione a: **{ufficio_sel}** (il tuo ufficio)")
+            sel_caps_assegna = st.multiselect(
+                "Capitoli da assegnare:",
+                options=list(cap_options_map.keys()),
+                default=list(cap_options_map.keys()),
+                key="sel_caps_assegna",
+            )
 
-            records = []
-            for _, row in df_out.iterrows():
-                records.append({
-                    "cap": int(row["Numero Capitolo di Spesa"]),
-                    "pg": int(row["Numero Piano di Gestione"]),
-                    "capitolo_spesa": row["Capitolo di Spesa"],
-                    "piano_gestione": row["Piano di Gestione"],
-                    "amministrazione": row["Amministrazione"],
-                    "centro_responsabilita": row[cdr_col],
-                    "missione": row["Missione"],
-                    "programma": row["Programma"],
-                    "azione": row["Azione"],
-                    "titolo": row["Titolo"],
-                    "cp_2026": int(row["Legge di Bilancio CP A1"]),
-                    "cp_2027": int(row["Legge di Bilancio CP A2"]),
-                    "cp_2028": int(row["Legge di Bilancio CP A3"]),
-                })
+            if not sel_caps_assegna:
+                st.info("Seleziona almeno un capitolo da assegnare.")
+            else:
+                sel_cap_nums = [cap_options_map[l] for l in sel_caps_assegna]
+                df_assegna = df_out[df_out["Numero Capitolo di Spesa"].isin(sel_cap_nums)].copy()
 
-            with col_btn:
-                st.markdown("")
-                st.markdown("")
+                col_uff, col_btn = st.columns([1, 2])
+
+                with col_uff:
+                    if is_super_admin():
+                        ufficio_sel = st.selectbox(
+                            "Ufficio:",
+                            options=["-- Seleziona --"] + [f"Ufficio {u}" for u in UFFICI],
+                            key="ufficio_assegna",
+                        )
+                    else:
+                        proprio_ufficio = st.session_state.ufficio
+                        ufficio_sel = f"Ufficio {proprio_ufficio}"
+                        st.info(f"Assegnazione a: **{ufficio_sel}** (il tuo ufficio)")
+
+                records = []
+                for _, row in df_assegna.iterrows():
+                    records.append({
+                        "cap": int(row["Numero Capitolo di Spesa"]),
+                        "pg": int(row["Numero Piano di Gestione"]),
+                        "capitolo_spesa": row["Capitolo di Spesa"],
+                        "piano_gestione": row["Piano di Gestione"],
+                        "amministrazione": row["Amministrazione"],
+                        "centro_responsabilita": row[cdr_col],
+                        "missione": row["Missione"],
+                        "programma": row["Programma"],
+                        "azione": row["Azione"],
+                        "titolo": row["Titolo"],
+                        "cp_2026": int(row["Legge di Bilancio CP A1"]),
+                        "cp_2027": int(row["Legge di Bilancio CP A2"]),
+                        "cp_2028": int(row["Legge di Bilancio CP A3"]),
+                    })
+
+                with col_btn:
+                    st.markdown("")
+                    st.markdown("")
+                    if ufficio_sel != "-- Seleziona --":
+                        ufficio_key = ufficio_sel.replace("Ufficio ", "")
+                        n_cap = len(sel_cap_nums)
+                        n_pg = len(df_assegna)
+
+                        if st.button(
+                            f"Aggiungi {n_cap} capitoli / {n_pg} PG a {ufficio_sel}",
+                            type="primary",
+                            key="btn_assegna",
+                        ):
+                            mappatura = load_mappatura()
+                            esistenti = mappatura.get(ufficio_key, [])
+                            chiavi_esistenti = {(r["cap"], r["pg"]) for r in esistenti}
+                            nuovi = [r for r in records if (r["cap"], r["pg"]) not in chiavi_esistenti]
+                            mappatura[ufficio_key] = esistenti + nuovi
+                            save_mappatura(mappatura)
+                            st.success(
+                                f"**{ufficio_sel}**: aggiunti **{len(nuovi)}** nuovi PG "
+                                f"(su {n_pg} selezionati, {n_pg - len(nuovi)} gia presenti)."
+                            )
+
                 if ufficio_sel != "-- Seleziona --":
                     ufficio_key = ufficio_sel.replace("Ufficio ", "")
-                    n_cap = df_out["Numero Capitolo di Spesa"].nunique()
-                    n_pg = len(df_out)
-
-                    if st.button(
-                        f"Aggiungi {n_cap} capitoli / {n_pg} PG a {ufficio_sel}",
-                        type="primary",
-                        key="btn_assegna",
-                    ):
-                        mappatura = load_mappatura()
-                        esistenti = mappatura.get(ufficio_key, [])
-                        chiavi_esistenti = {(r["cap"], r["pg"]) for r in esistenti}
-                        nuovi = [r for r in records if (r["cap"], r["pg"]) not in chiavi_esistenti]
-                        mappatura[ufficio_key] = esistenti + nuovi
-                        save_mappatura(mappatura)
-                        st.success(
-                            f"**{ufficio_sel}**: aggiunti **{len(nuovi)}** nuovi PG "
-                            f"(su {n_pg} selezionati, {n_pg - len(nuovi)} gia presenti)."
+                    mappatura = load_mappatura()
+                    if ufficio_key in mappatura and mappatura[ufficio_key]:
+                        existing = mappatura[ufficio_key]
+                        caps_ex = len(set(r["cap"] for r in existing))
+                        st.info(
+                            f"{ufficio_sel} ha attualmente **{caps_ex}** capitoli "
+                            f"e **{len(existing)}** PG mappati. "
+                            f"I nuovi verranno aggiunti senza cancellare i precedenti."
                         )
-
-            if ufficio_sel != "-- Seleziona --":
-                ufficio_key = ufficio_sel.replace("Ufficio ", "")
-                mappatura = load_mappatura()
-                if ufficio_key in mappatura and mappatura[ufficio_key]:
-                    existing = mappatura[ufficio_key]
-                    caps_ex = len(set(r["cap"] for r in existing))
-                    st.info(
-                        f"{ufficio_sel} ha attualmente **{caps_ex}** capitoli "
-                        f"e **{len(existing)}** PG mappati. "
-                        f"I nuovi verranno aggiunti senza cancellare i precedenti."
-                    )
 
 
 # ==================================================================
@@ -1238,7 +1259,8 @@ if pagina == "Cerca Piano Gestionale":
         if st.button("Reset filtri", key="btn_reset_filtri"):
             for k in ["sel_titolo", "sel_amm", "sel_cdr", "sel_miss",
                        "sel_prog", "sel_azione", "search_cap_num",
-                       "search_cap_text", "search_pg_text"]:
+                       "search_cap_text", "search_pg_text",
+                       "filtro_amm_risultati", "sel_caps_assegna"]:
                 if k in st.session_state:
                     del st.session_state[k]
             st.rerun()
@@ -1390,6 +1412,21 @@ if pagina == "Cerca Piano Gestionale":
         f"**{n_cap_out:,}** capitoli e **{n_pg_out:,}** PG trovati"
         + (f" ({', '.join(desc_parts)})" if desc_parts else "")
     )
+
+    # --- Filtro Amministrazione sui risultati ---
+    amm_risultati = sorted(df_out["Amministrazione"].unique())
+    if len(amm_risultati) > 1:
+        sel_amm_risultati = st.multiselect(
+            "Filtra risultati per Amministrazione:",
+            options=amm_risultati,
+            default=amm_risultati,
+            key="filtro_amm_risultati",
+        )
+        if sel_amm_risultati:
+            df_out = df_out[df_out["Amministrazione"].isin(sel_amm_risultati)].copy()
+        if df_out.empty:
+            st.warning("Nessun risultato per le amministrazioni selezionate.")
+            st.stop()
 
     visualizza_capitoli(df_out)
     sezione_export_e_assegnazione(df_out)
