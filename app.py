@@ -1045,9 +1045,11 @@ def visualizza_capitoli(df_out, mostra_selezione=False):
             if user_puo_mappare:
                 col_chk, col_exp = st.columns([0.05, 0.95])
                 with col_chk:
+                    # Inizializza la checkbox se non esiste ancora
+                    if chk_key not in st.session_state:
+                        st.session_state[chk_key] = False
                     checked = st.checkbox(
                         "sel",
-                        value=st.session_state.get(chk_key, False),
                         key=chk_key,
                         label_visibility="collapsed",
                     )
