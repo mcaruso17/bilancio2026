@@ -16,7 +16,7 @@ start_time_str = start_time.strftime("%d/%m/%Y %H:%M:%S")
 #                    IMPOSTAZIONI DA MODIFICARE
 # ======================================================================
 
-BILANCIO_CSV = "bilancio2026.csv"
+BILANCIO_CSV = "bilanci.csv"
 MAPPATURA_FILE = "mappatura_uffici.json"
 
 UFFICI = [
@@ -32,7 +32,7 @@ init_database()
 auth = Authenticator()
 
 st.set_page_config(
-    page_title="Navigatore LdB 2026 -- Ragioneria Generale dello Stato",
+    page_title="Navigatore LdB -- Ragioneria Generale dello Stato",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -368,7 +368,6 @@ tr:nth-child(even) td { background-color: #F5F6F8 !important; }
     letter-spacing: .07em !important; color: rgba(255,255,255,.50) !important;
 }
 [data-testid="stSidebar"] hr { border-color: rgba(255,255,255,.12) !important; }
-/* ---- FIX: Expander dentro sidebar ---- */
 [data-testid="stSidebar"] .streamlit-expanderHeader,
 [data-testid="stSidebar"] details summary {
     background-color: rgba(255,255,255,0.08) !important;
@@ -432,6 +431,13 @@ footer                                 { display: none !important; }
     display: flex; justify-content: space-between;
     flex-wrap: wrap; gap: 4px; background-color: #FFFFFF;
 }
+
+/* Badge per confronto annuale */
+.badge-new { background:#27AE60; color:#FFF; padding:2px 7px; border-radius:2px; font-size:10px; font-weight:700; letter-spacing:.05em; }
+.badge-gone { background:#CC2222; color:#FFF; padding:2px 7px; border-radius:2px; font-size:10px; font-weight:700; letter-spacing:.05em; }
+.badge-up { color:#27AE60; font-weight:700; }
+.badge-down { color:#CC2222; font-weight:700; }
+.badge-flat { color:#556080; font-weight:600; }
 </style>
 """
 
@@ -452,7 +458,7 @@ def pagina_login():
           <div class="mef-header-sub">Navigatore Legge di Bilancio</div>
         </div>
         <div class="mef-header-right">
-          <div class="mef-app-name">LdB 2026</div>
+          <div class="mef-app-name">LdB 2011-2026</div>
           <div class="mef-app-tagline">Navigatore e Mappatura Uffici</div>
         </div>
       </div>
@@ -636,7 +642,12 @@ if st.session_state.deve_cambiare_password:
 with st.sidebar:
     pagina = st.radio(
         "Pagina",
-        options=["Ricerca per Amministrazione", "Ricerca per Capitolo", "Mappatura Uffici"],
+        options=[
+            "Ricerca per Amministrazione",
+            "Ricerca per Capitolo",
+            "Confronto Annuale",
+            "Mappatura Uffici",
+        ],
         index=0,
     )
 
@@ -675,7 +686,7 @@ st.markdown("""
       <div class="mef-header-sub">Navigatore Legge di Bilancio</div>
     </div>
     <div class="mef-header-right">
-      <div class="mef-app-name">LdB 2026</div>
+      <div class="mef-app-name">LdB 2011-2026</div>
       <div class="mef-app-tagline">Navigatore e Mappatura Uffici</div>
     </div>
   </div>
@@ -687,6 +698,8 @@ st.markdown("""
 #  CARICAMENTO DATI
 # ===================================================================
 
+ANNO_COL = "Esercizio Finanziario"
+
 @st.cache_data
 def load_bilancio():
     if not os.path.exists(BILANCIO_CSV):
@@ -695,6 +708,9 @@ def load_bilancio():
     str_cols = df.select_dtypes(include="object").columns
     for c in str_cols:
         df[c] = df[c].astype(str).str.strip()
+    # Converti colonna anno in intero
+    if ANNO_COL in df.columns:
+        df[ANNO_COL] = pd.to_numeric(df[ANNO_COL], errors="coerce").fillna(0).astype(int)
     importo_cols = [
         "Legge di Bilancio CP A1", "Legge di Bilancio CP A2",
         "Legge di Bilancio CP A3", "Legge di Bilancio CS A1",
@@ -726,6 +742,26 @@ def fmt_eur(val):
     if pd.isna(val) or val == 0:
         return "EUR 0"
     return f"EUR {int(val):,.0f}".replace(",", ".")
+
+
+def fmt_var(val):
+    """Formatta una variazione con segno e colore"""
+    if pd.isna(val) or val == 0:
+        return '<span class="badge-flat">--</span>'
+    sign = "+" if val > 0 else ""
+    css = "badge-up" if val > 0 else "badge-down"
+    return f'<span class="{css}">{sign}{int(val):,.0f}</span>'.replace(",", ".")
+
+
+def fmt_pct(val):
+    """Formatta una variazione percentuale"""
+    if pd.isna(val):
+        return '<span class="badge-flat">n/a</span>'
+    if val == float("inf") or val == float("-inf"):
+        return '<span class="badge-up">NUOVO</span>' if val > 0 else '<span class="badge-down">AZZERATO</span>'
+    sign = "+" if val > 0 else ""
+    css = "badge-up" if val > 0 else ("badge-down" if val < 0 else "badge-flat")
+    return f'<span class="{css}">{sign}{val:.1f}%</span>'
 
 
 def build_label_map(df_slice, code_col, name_col):
@@ -764,16 +800,21 @@ if not data_ok:
     """, unsafe_allow_html=True)
     st.stop()
 
+# Lista anni disponibili
+anni_disponibili = sorted(df[ANNO_COL].unique())
+anno_max = max(anni_disponibili)
+
 st.markdown(f"""
-<div class="mef-page-title">Legge di Bilancio 2026</div>
+<div class="mef-page-title">Legge di Bilancio {anni_disponibili[0]}-{anno_max}</div>
 <div class="mef-page-subtitle">
-  Navigazione gerarchica del bilancio e mappatura uffici ispettorato
+  Navigazione gerarchica del bilancio, confronto annuale e mappatura uffici ispettorato
 </div>
 <div class="mef-status-row">
   <div class="mef-status-card">
     <div class="mef-status-dot"></div>
     <span>Dataset: <strong>{len(df):,}</strong> record --
-    <strong>{df['Numero Capitolo di Spesa'].nunique():,}</strong> capitoli</span>
+    <strong>{df['Numero Capitolo di Spesa'].nunique():,}</strong> capitoli --
+    <strong>{len(anni_disponibili)}</strong> esercizi ({anni_disponibili[0]}-{anno_max})</span>
     <span class="mef-status-tag">LdB</span>
   </div>
 </div>
@@ -798,7 +839,7 @@ def visualizza_capitoli(df_out):
     col_m1, col_m2, col_m3 = st.columns(3)
     col_m1.metric("Capitoli di Spesa", f"{n_cap_out:,}")
     col_m2.metric("Piani Gestionali", f"{n_pg_out:,}")
-    col_m3.metric("Totale CP 2026", fmt_eur(totale_cp))
+    col_m3.metric("Totale CP Anno 1", fmt_eur(totale_cp))
 
     for amm in sorted(df_out["Amministrazione"].unique()):
         df_amm = df_out[df_out["Amministrazione"] == amm]
@@ -844,14 +885,14 @@ def visualizza_capitoli(df_out):
                     "Numero Piano di Gestione": "N. PG",
                     "Piano di Gestione": "Descrizione PG",
                     "Azione": "Azione",
-                    "Legge di Bilancio CP A1": "CP 2026",
-                    "Legge di Bilancio CP A2": "CP 2027",
-                    "Legge di Bilancio CP A3": "CP 2028",
-                    "Legge di Bilancio CS A1": "CS 2026",
-                    "Legge di Bilancio RS A1": "RS 2026",
+                    "Legge di Bilancio CP A1": "CP Anno 1",
+                    "Legge di Bilancio CP A2": "CP Anno 2",
+                    "Legge di Bilancio CP A3": "CP Anno 3",
+                    "Legge di Bilancio CS A1": "CS Anno 1",
+                    "Legge di Bilancio RS A1": "RS Anno 1",
                 }
                 df_display = df_display.rename(columns=rename_map)
-                for col in ["CP 2026", "CP 2027", "CP 2028", "CS 2026", "RS 2026"]:
+                for col in ["CP Anno 1", "CP Anno 2", "CP Anno 3", "CS Anno 1", "RS Anno 1"]:
                     if col in df_display.columns:
                         df_display[col] = df_display[col].apply(fmt_eur)
 
@@ -859,9 +900,9 @@ def visualizza_capitoli(df_out):
 
                 st.markdown(
                     f"**Totale Cap. {num_cap}:** "
-                    f"CP 2026 = {fmt_eur(df_cap['Legge di Bilancio CP A1'].sum())} | "
-                    f"CP 2027 = {fmt_eur(df_cap['Legge di Bilancio CP A2'].sum())} | "
-                    f"CP 2028 = {fmt_eur(df_cap['Legge di Bilancio CP A3'].sum())}"
+                    f"CP A1 = {fmt_eur(df_cap['Legge di Bilancio CP A1'].sum())} | "
+                    f"CP A2 = {fmt_eur(df_cap['Legge di Bilancio CP A2'].sum())} | "
+                    f"CP A3 = {fmt_eur(df_cap['Legge di Bilancio CP A3'].sum())}"
                 )
 
 
@@ -879,7 +920,7 @@ def sezione_export_e_assegnazione(df_out):
 
     with tab_csv:
         export_cols = [
-            "Amministrazione", cdr_col,
+            ANNO_COL, "Amministrazione", cdr_col,
             "Missione", "Programma", "Azione", "Titolo",
             "Numero Capitolo di Spesa", "Capitolo di Spesa",
             "Numero Piano di Gestione", "Piano di Gestione",
@@ -896,7 +937,7 @@ def sezione_export_e_assegnazione(df_out):
         st.download_button(
             label=f"Scarica CSV ({len(df_out):,} righe)",
             data=csv_data,
-            file_name="bilancio_2026_selezione.csv",
+            file_name="bilancio_selezione.csv",
             mime="text/csv",
         )
 
@@ -976,14 +1017,39 @@ def sezione_export_e_assegnazione(df_out):
 
 
 # ==================================================================
+#     WIDGET SELEZIONE ANNO (usato nelle pagine di ricerca)
+# ==================================================================
+
+def selettore_anno(key_prefix=""):
+    """Mostra il selettore anno e restituisce il df filtrato per l'anno scelto"""
+    st.markdown(
+        '<div class="mef-page-title" style="font-size:17px">Esercizio Finanziario</div>',
+        unsafe_allow_html=True,
+    )
+    anno_sel = st.selectbox(
+        "Seleziona l'anno di bilancio:",
+        options=sorted(anni_disponibili, reverse=True),
+        index=0,
+        key=f"{key_prefix}_anno",
+    )
+    df_anno = df[df[ANNO_COL] == anno_sel].copy()
+    st.caption(f"Esercizio **{anno_sel}**: {len(df_anno):,} record, "
+               f"{df_anno['Numero Capitolo di Spesa'].nunique():,} capitoli")
+    st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
+    return anno_sel, df_anno
+
+
+# ==================================================================
 #         PAGINA 1 -- RICERCA PER AMMINISTRAZIONE
 # ==================================================================
 
 if pagina == "Ricerca per Amministrazione":
 
+    anno_sel, df_anno = selettore_anno("amm")
+
     # --- STEP 1 --- TITOLO ---
     st.markdown('<div class="mef-page-title" style="font-size:17px">1. Titolo</div>', unsafe_allow_html=True)
-    titoli = sorted(df["Titolo"].unique())
+    titoli = sorted(df_anno["Titolo"].unique())
     sel_titoli = st.multiselect(
         "Seleziona uno o piu Titoli:",
         options=titoli,
@@ -993,7 +1059,7 @@ if pagina == "Ricerca per Amministrazione":
         st.info("Seleziona almeno un titolo per continuare.")
         st.stop()
 
-    df_filtered = df[df["Titolo"].isin(sel_titoli)].copy()
+    df_filtered = df_anno[df_anno["Titolo"].isin(sel_titoli)].copy()
 
     # --- STEP 2 --- AMMINISTRAZIONI ---
     st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
@@ -1106,9 +1172,10 @@ if pagina == "Ricerca per Amministrazione":
     with st.sidebar:
         st.markdown("---")
         st.header("Dataset")
+        st.metric("Anno selezionato", str(anno_sel))
         st.metric("Record totali", f"{len(df):,}")
-        st.metric("Amministrazioni", f"{df['Amministrazione'].nunique()}")
-        st.metric("Capitoli", f"{df['Numero Capitolo di Spesa'].nunique():,}")
+        st.metric("Amministrazioni", f"{df_anno['Amministrazione'].nunique()}")
+        st.metric("Capitoli", f"{df_anno['Numero Capitolo di Spesa'].nunique():,}")
 
         st.markdown("---")
         st.subheader("Filtri attivi")
@@ -1145,8 +1212,10 @@ if pagina == "Ricerca per Amministrazione":
 
 elif pagina == "Ricerca per Capitolo":
 
+    anno_sel, df_anno = selettore_anno("cap")
+
     st.markdown('<div class="mef-page-title" style="font-size:17px">1. Titolo</div>', unsafe_allow_html=True)
-    titoli = sorted(df["Titolo"].unique())
+    titoli = sorted(df_anno["Titolo"].unique())
     sel_titoli_cap = st.multiselect(
         "Seleziona uno o piu Titoli:",
         options=titoli,
@@ -1156,7 +1225,7 @@ elif pagina == "Ricerca per Capitolo":
         st.info("Seleziona almeno un titolo per continuare.")
         st.stop()
 
-    df_filtered_cap = df[df["Titolo"].isin(sel_titoli_cap)].copy()
+    df_filtered_cap = df_anno[df_anno["Titolo"].isin(sel_titoli_cap)].copy()
 
     st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
     st.markdown('<div class="mef-page-title" style="font-size:17px">2. Amministrazioni</div>', unsafe_allow_html=True)
@@ -1185,7 +1254,6 @@ elif pagina == "Ricerca per Capitolo":
         st.info("Inserisci almeno un numero di capitolo.")
         st.stop()
 
-    # Parsa i numeri di capitolo inseriti
     numeri_cercati = []
     for n in search_cap.split(","):
         n = n.strip()
@@ -1207,7 +1275,6 @@ elif pagina == "Ricerca per Capitolo":
         )
         st.stop()
 
-    # Mostra quali capitoli sono stati trovati e quali no
     trovati = set(df_out_cap["Numero Capitolo di Spesa"].unique())
     non_trovati = [n for n in numeri_cercati if n not in trovati]
     if non_trovati:
@@ -1286,12 +1353,455 @@ elif pagina == "Ricerca per Capitolo":
     with st.sidebar:
         st.markdown("---")
         st.header("Ricerca attiva")
+        st.caption(f"Anno: {anno_sel}")
         st.caption(f"Capitoli cercati: {', '.join(str(n) for n in numeri_cercati)}")
         st.caption(f"Trovati: {len(trovati)} / {len(numeri_cercati)}")
 
 
 # ==================================================================
-#         PAGINA 3 -- MAPPATURA UFFICI
+#         PAGINA 3 -- CONFRONTO ANNUALE
+# ==================================================================
+
+elif pagina == "Confronto Annuale":
+
+    st.markdown("""
+    <div class="mef-page-title">Confronto Annuale</div>
+    <div class="mef-page-subtitle">
+      Confronta due esercizi finanziari: individua PG scomparsi, nuovi e variazioni di stanziamento
+    </div>
+    """, unsafe_allow_html=True)
+
+    # --- Selezione due anni ---
+    col_a, col_b = st.columns(2)
+    with col_a:
+        anno_a = st.selectbox(
+            "Anno di partenza (precedente):",
+            options=sorted(anni_disponibili),
+            index=max(0, len(anni_disponibili) - 2),
+            key="confronto_anno_a",
+        )
+    with col_b:
+        anno_b = st.selectbox(
+            "Anno di arrivo (successivo):",
+            options=sorted(anni_disponibili),
+            index=len(anni_disponibili) - 1,
+            key="confronto_anno_b",
+        )
+
+    if anno_a == anno_b:
+        st.warning("Seleziona due anni diversi per il confronto.")
+        st.stop()
+
+    st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
+
+    # --- Filtro Amministrazione ---
+    st.markdown('<div class="mef-page-title" style="font-size:17px">Filtri</div>', unsafe_allow_html=True)
+
+    # Unione delle amministrazioni presenti in entrambi gli anni
+    df_a_full = df[df[ANNO_COL] == anno_a]
+    df_b_full = df[df[ANNO_COL] == anno_b]
+    amm_union = sorted(set(df_a_full["Amministrazione"].unique()) | set(df_b_full["Amministrazione"].unique()))
+
+    sel_amm_conf = st.multiselect(
+        "Amministrazioni (vuoto = tutte):",
+        options=amm_union,
+        key="conf_amm",
+    )
+
+    if sel_amm_conf:
+        df_a = df_a_full[df_a_full["Amministrazione"].isin(sel_amm_conf)].copy()
+        df_b = df_b_full[df_b_full["Amministrazione"].isin(sel_amm_conf)].copy()
+    else:
+        df_a = df_a_full.copy()
+        df_b = df_b_full.copy()
+
+    # Filtro opzionale per capitolo
+    search_conf = st.text_input(
+        "Filtra per numeri di capitolo (opzionale, separati da virgola):",
+        placeholder="es. 7001, 7002",
+        key="conf_cap_filter",
+    )
+    if search_conf:
+        caps_filter = []
+        for n in search_conf.split(","):
+            n = n.strip()
+            if n.isdigit():
+                caps_filter.append(int(n))
+        if caps_filter:
+            df_a = df_a[df_a["Numero Capitolo di Spesa"].isin(caps_filter)].copy()
+            df_b = df_b[df_b["Numero Capitolo di Spesa"].isin(caps_filter)].copy()
+
+    if df_a.empty and df_b.empty:
+        st.warning("Nessun dato trovato per i filtri selezionati.")
+        st.stop()
+
+    st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
+
+    # --- Chiave univoca per PG ---
+    KEY_COLS = ["Amministrazione", "Numero Capitolo di Spesa", "Numero Piano di Gestione"]
+
+    def make_key(row):
+        return (row["Amministrazione"], int(row["Numero Capitolo di Spesa"]), int(row["Numero Piano di Gestione"]))
+
+    keys_a = set(df_a.apply(make_key, axis=1))
+    keys_b = set(df_b.apply(make_key, axis=1))
+
+    scomparsi_keys = keys_a - keys_b    # in A ma non in B
+    nuovi_keys = keys_b - keys_a        # in B ma non in A
+    comuni_keys = keys_a & keys_b       # in entrambi
+
+    # --- TAB: Riepilogo / Scomparsi / Nuovi / Variazioni / Storico ---
+    tab_riep, tab_scomp, tab_nuovi, tab_var, tab_storico = st.tabs([
+        f"Riepilogo",
+        f"Scomparsi ({len(scomparsi_keys)})",
+        f"Nuovi ({len(nuovi_keys)})",
+        f"Variazioni ({len(comuni_keys)})",
+        "Storico pluriennale",
+    ])
+
+    # ---- TAB RIEPILOGO ----
+    with tab_riep:
+        st.markdown(f'<div class="mef-page-title" style="font-size:17px">Riepilogo {anno_a} vs {anno_b}</div>', unsafe_allow_html=True)
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric(f"PG in {anno_a}", f"{len(keys_a):,}")
+        col2.metric(f"PG in {anno_b}", f"{len(keys_b):,}")
+        col3.metric("PG scomparsi", f"{len(scomparsi_keys):,}")
+        col4.metric("PG nuovi", f"{len(nuovi_keys):,}")
+
+        # Totali CP
+        tot_a = df_a["Legge di Bilancio CP A1"].sum()
+        tot_b = df_b["Legge di Bilancio CP A1"].sum()
+        delta = tot_b - tot_a
+        pct = (delta / tot_a * 100) if tot_a != 0 else 0
+
+        col5, col6, col7 = st.columns(3)
+        col5.metric(f"Totale CP {anno_a}", fmt_eur(tot_a))
+        col6.metric(f"Totale CP {anno_b}", fmt_eur(tot_b))
+        col7.metric("Variazione", fmt_eur(delta), f"{pct:+.1f}%")
+
+    # ---- TAB SCOMPARSI ----
+    with tab_scomp:
+        st.markdown(
+            f'<div class="mef-page-title" style="font-size:17px">'
+            f'PG presenti in {anno_a} ma assenti in {anno_b}</div>',
+            unsafe_allow_html=True,
+        )
+
+        if not scomparsi_keys:
+            st.success("Nessun PG scomparso!")
+        else:
+            rows_scomp = []
+            for _, row in df_a.iterrows():
+                k = make_key(row)
+                if k in scomparsi_keys:
+                    rows_scomp.append({
+                        "Amministrazione": row["Amministrazione"],
+                        "N. Capitolo": int(row["Numero Capitolo di Spesa"]),
+                        "Capitolo": row["Capitolo di Spesa"],
+                        "N. PG": int(row["Numero Piano di Gestione"]),
+                        "Piano di Gestione": row["Piano di Gestione"],
+                        f"CP {anno_a}": int(row["Legge di Bilancio CP A1"]),
+                    })
+            df_scomp = pd.DataFrame(rows_scomp).sort_values(["Amministrazione", "N. Capitolo", "N. PG"])
+
+            tot_scomp = df_scomp[f"CP {anno_a}"].sum()
+            st.metric("Stanziamento perso (PG scomparsi)", fmt_eur(tot_scomp))
+
+            df_scomp_display = df_scomp.copy()
+            df_scomp_display[f"CP {anno_a}"] = df_scomp_display[f"CP {anno_a}"].apply(fmt_eur)
+            st.dataframe(df_scomp_display, use_container_width=True, hide_index=True)
+
+            csv_scomp = df_scomp.to_csv(index=False, sep=";").encode("utf-8-sig")
+            st.download_button(
+                f"Scarica PG scomparsi ({len(df_scomp)} righe)",
+                csv_scomp, f"pg_scomparsi_{anno_a}_vs_{anno_b}.csv", "text/csv",
+                key="dl_scomp",
+            )
+
+    # ---- TAB NUOVI ----
+    with tab_nuovi:
+        st.markdown(
+            f'<div class="mef-page-title" style="font-size:17px">'
+            f'PG assenti in {anno_a} ma presenti in {anno_b}</div>',
+            unsafe_allow_html=True,
+        )
+
+        if not nuovi_keys:
+            st.success("Nessun PG nuovo!")
+        else:
+            rows_nuovi = []
+            for _, row in df_b.iterrows():
+                k = make_key(row)
+                if k in nuovi_keys:
+                    rows_nuovi.append({
+                        "Amministrazione": row["Amministrazione"],
+                        "N. Capitolo": int(row["Numero Capitolo di Spesa"]),
+                        "Capitolo": row["Capitolo di Spesa"],
+                        "N. PG": int(row["Numero Piano di Gestione"]),
+                        "Piano di Gestione": row["Piano di Gestione"],
+                        f"CP {anno_b}": int(row["Legge di Bilancio CP A1"]),
+                    })
+            df_nuovi = pd.DataFrame(rows_nuovi).sort_values(["Amministrazione", "N. Capitolo", "N. PG"])
+
+            tot_nuovi = df_nuovi[f"CP {anno_b}"].sum()
+            st.metric("Stanziamento nuovi PG", fmt_eur(tot_nuovi))
+
+            df_nuovi_display = df_nuovi.copy()
+            df_nuovi_display[f"CP {anno_b}"] = df_nuovi_display[f"CP {anno_b}"].apply(fmt_eur)
+            st.dataframe(df_nuovi_display, use_container_width=True, hide_index=True)
+
+            csv_nuovi = df_nuovi.to_csv(index=False, sep=";").encode("utf-8-sig")
+            st.download_button(
+                f"Scarica PG nuovi ({len(df_nuovi)} righe)",
+                csv_nuovi, f"pg_nuovi_{anno_a}_vs_{anno_b}.csv", "text/csv",
+                key="dl_nuovi",
+            )
+
+    # ---- TAB VARIAZIONI ----
+    with tab_var:
+        st.markdown(
+            f'<div class="mef-page-title" style="font-size:17px">'
+            f'Variazione stanziamento CP: {anno_a} vs {anno_b}</div>',
+            unsafe_allow_html=True,
+        )
+
+        if not comuni_keys:
+            st.info("Nessun PG in comune tra i due anni.")
+        else:
+            # Crea lookup per anno A e B
+            lookup_a = {}
+            for _, row in df_a.iterrows():
+                k = make_key(row)
+                if k in comuni_keys:
+                    lookup_a[k] = row
+
+            lookup_b = {}
+            for _, row in df_b.iterrows():
+                k = make_key(row)
+                if k in comuni_keys:
+                    lookup_b[k] = row
+
+            rows_var = []
+            for k in sorted(comuni_keys):
+                ra = lookup_a[k]
+                rb = lookup_b[k]
+                cp_a = int(ra["Legge di Bilancio CP A1"])
+                cp_b = int(rb["Legge di Bilancio CP A1"])
+                delta_v = cp_b - cp_a
+                pct_v = (delta_v / cp_a * 100) if cp_a != 0 else (100.0 if cp_b > 0 else 0.0)
+
+                rows_var.append({
+                    "Amministrazione": k[0],
+                    "N. Capitolo": k[1],
+                    "Capitolo": rb["Capitolo di Spesa"],
+                    "N. PG": k[2],
+                    "Piano di Gestione": rb["Piano di Gestione"],
+                    f"CP {anno_a}": cp_a,
+                    f"CP {anno_b}": cp_b,
+                    "Variazione": delta_v,
+                    "Var %": round(pct_v, 1),
+                })
+
+            df_var = pd.DataFrame(rows_var)
+
+            # Filtro variazioni
+            filtro_var = st.radio(
+                "Mostra:",
+                ["Tutti", "Solo aumenti", "Solo diminuzioni", "Solo invariati"],
+                horizontal=True,
+                key="filtro_var",
+            )
+            if filtro_var == "Solo aumenti":
+                df_var = df_var[df_var["Variazione"] > 0]
+            elif filtro_var == "Solo diminuzioni":
+                df_var = df_var[df_var["Variazione"] < 0]
+            elif filtro_var == "Solo invariati":
+                df_var = df_var[df_var["Variazione"] == 0]
+
+            # Ordinamento
+            ord_var = st.selectbox(
+                "Ordina per:",
+                ["Variazione (decrescente)", "Variazione (crescente)",
+                 "Var % (decrescente)", "Var % (crescente)",
+                 "Capitolo"],
+                key="ord_var",
+            )
+            if ord_var == "Variazione (decrescente)":
+                df_var = df_var.sort_values("Variazione", ascending=False)
+            elif ord_var == "Variazione (crescente)":
+                df_var = df_var.sort_values("Variazione", ascending=True)
+            elif ord_var == "Var % (decrescente)":
+                df_var = df_var.sort_values("Var %", ascending=False)
+            elif ord_var == "Var % (crescente)":
+                df_var = df_var.sort_values("Var %", ascending=True)
+            else:
+                df_var = df_var.sort_values(["Amministrazione", "N. Capitolo", "N. PG"])
+
+            # Metriche
+            n_aum = (df_var["Variazione"] > 0).sum() if not df_var.empty else 0
+            n_dim = (df_var["Variazione"] < 0).sum() if not df_var.empty else 0
+            n_inv = (df_var["Variazione"] == 0).sum() if not df_var.empty else 0
+
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("PG mostrati", f"{len(df_var):,}")
+            c2.metric("In aumento", f"{n_aum:,}")
+            c3.metric("In diminuzione", f"{n_dim:,}")
+            c4.metric("Invariati", f"{n_inv:,}")
+
+            # Display
+            df_var_display = df_var.copy()
+            for col in [f"CP {anno_a}", f"CP {anno_b}", "Variazione"]:
+                df_var_display[col] = df_var_display[col].apply(fmt_eur)
+            df_var_display["Var %"] = df_var_display["Var %"].apply(lambda x: f"{x:+.1f}%")
+
+            st.dataframe(df_var_display, use_container_width=True, hide_index=True)
+
+            csv_var = df_var.to_csv(index=False, sep=";").encode("utf-8-sig")
+            st.download_button(
+                f"Scarica variazioni ({len(df_var)} righe)",
+                csv_var, f"variazioni_{anno_a}_vs_{anno_b}.csv", "text/csv",
+                key="dl_var",
+            )
+
+    # ---- TAB STORICO PLURIENNALE ----
+    with tab_storico:
+        st.markdown(
+            '<div class="mef-page-title" style="font-size:17px">'
+            'Storico stanziamento CP per capitolo/PG</div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            '<div class="mef-page-subtitle">'
+            'Seleziona un capitolo per vedere come e variato lo stanziamento anno per anno</div>',
+            unsafe_allow_html=True,
+        )
+
+        # Selezione amministrazione per restringere
+        amm_storico = sorted(set(df_a_full["Amministrazione"].unique()) | set(df_b_full["Amministrazione"].unique()))
+        if sel_amm_conf:
+            amm_storico = sel_amm_conf
+
+        sel_amm_storico = st.selectbox(
+            "Amministrazione:",
+            options=amm_storico,
+            key="storico_amm",
+        )
+
+        df_amm_tutti = df[df["Amministrazione"] == sel_amm_storico]
+        caps_storico = sorted(df_amm_tutti["Numero Capitolo di Spesa"].unique())
+
+        sel_cap_storico = st.selectbox(
+            "Capitolo di spesa:",
+            options=caps_storico,
+            format_func=lambda c: f"Cap. {c} -- {df_amm_tutti[df_amm_tutti['Numero Capitolo di Spesa'] == c]['Capitolo di Spesa'].iloc[0]}"
+                if len(df_amm_tutti[df_amm_tutti['Numero Capitolo di Spesa'] == c]) > 0 else f"Cap. {c}",
+            key="storico_cap",
+        )
+
+        df_cap_storico = df_amm_tutti[df_amm_tutti["Numero Capitolo di Spesa"] == sel_cap_storico]
+
+        if df_cap_storico.empty:
+            st.warning("Nessun dato per questo capitolo.")
+        else:
+            # Costruisci la tabella: righe = PG, colonne = anni
+            pg_list = sorted(df_cap_storico["Numero Piano di Gestione"].unique())
+            anni_presenti = sorted(df_cap_storico[ANNO_COL].unique())
+
+            # Nome PG (prendi il piu recente)
+            pg_names = {}
+            for pg in pg_list:
+                df_pg = df_cap_storico[df_cap_storico["Numero Piano di Gestione"] == pg]
+                pg_names[pg] = df_pg.sort_values(ANNO_COL, ascending=False)["Piano di Gestione"].iloc[0]
+
+            storico_rows = []
+            for pg in pg_list:
+                row = {
+                    "N. PG": int(pg),
+                    "Piano di Gestione": pg_names[pg],
+                }
+                for anno in anni_presenti:
+                    df_pg_anno = df_cap_storico[
+                        (df_cap_storico["Numero Piano di Gestione"] == pg)
+                        & (df_cap_storico[ANNO_COL] == anno)
+                    ]
+                    if len(df_pg_anno) > 0:
+                        row[f"CP {anno}"] = int(df_pg_anno["Legge di Bilancio CP A1"].sum())
+                    else:
+                        row[f"CP {anno}"] = None
+                storico_rows.append(row)
+
+            df_storico = pd.DataFrame(storico_rows)
+
+            # Aggiungi riga totale
+            totale_row = {"N. PG": "", "Piano di Gestione": "TOTALE CAPITOLO"}
+            for anno in anni_presenti:
+                col_name = f"CP {anno}"
+                vals = df_storico[col_name].dropna()
+                totale_row[col_name] = int(vals.sum()) if len(vals) > 0 else None
+            df_storico = pd.concat([df_storico, pd.DataFrame([totale_row])], ignore_index=True)
+
+            # Formattazione per display
+            df_storico_display = df_storico.copy()
+            for anno in anni_presenti:
+                col_name = f"CP {anno}"
+                df_storico_display[col_name] = df_storico_display[col_name].apply(
+                    lambda x: fmt_eur(x) if pd.notna(x) else "—"
+                )
+
+            st.dataframe(df_storico_display, use_container_width=True, hide_index=True)
+
+            # Variazioni anno su anno per il totale capitolo
+            st.markdown(
+                '<div class="mef-page-title" style="font-size:15px;margin-top:1rem">'
+                'Variazione anno su anno (totale capitolo)</div>',
+                unsafe_allow_html=True,
+            )
+            if len(anni_presenti) >= 2:
+                var_rows = []
+                for i in range(1, len(anni_presenti)):
+                    a_prev = anni_presenti[i - 1]
+                    a_curr = anni_presenti[i]
+                    v_prev = totale_row.get(f"CP {a_prev}")
+                    v_curr = totale_row.get(f"CP {a_curr}")
+                    if v_prev is not None and v_curr is not None:
+                        delta_s = v_curr - v_prev
+                        pct_s = (delta_s / v_prev * 100) if v_prev != 0 else (100.0 if v_curr > 0 else 0.0)
+                    else:
+                        delta_s = None
+                        pct_s = None
+                    var_rows.append({
+                        "Periodo": f"{a_prev} → {a_curr}",
+                        f"CP {a_prev}": fmt_eur(v_prev) if v_prev is not None else "—",
+                        f"CP {a_curr}": fmt_eur(v_curr) if v_curr is not None else "—",
+                        "Variazione": fmt_eur(delta_s) if delta_s is not None else "—",
+                        "Var %": f"{pct_s:+.1f}%" if pct_s is not None else "n/a",
+                    })
+                df_var_storico = pd.DataFrame(var_rows)
+                st.dataframe(df_var_storico, use_container_width=True, hide_index=True)
+
+            # Export
+            csv_storico = df_storico.to_csv(index=False, sep=";").encode("utf-8-sig")
+            st.download_button(
+                f"Scarica storico Cap. {sel_cap_storico}",
+                csv_storico,
+                f"storico_cap_{sel_cap_storico}.csv",
+                "text/csv",
+                key="dl_storico",
+            )
+
+    # --- SIDEBAR ---
+    with st.sidebar:
+        st.markdown("---")
+        st.header("Confronto")
+        st.caption(f"{anno_a} vs {anno_b}")
+        st.metric("PG scomparsi", f"{len(scomparsi_keys):,}")
+        st.metric("PG nuovi", f"{len(nuovi_keys):,}")
+        st.metric("PG in comune", f"{len(comuni_keys):,}")
+
+
+# ==================================================================
+#         PAGINA 4 -- MAPPATURA UFFICI
 # ==================================================================
 
 elif pagina == "Mappatura Uffici":
@@ -1555,7 +2065,7 @@ elif pagina == "Mappatura Uffici":
 st.markdown(
     f'<div class="mef-footer">'
     f"  <span>Ministero dell'Economia e delle Finanze -- Ragioneria Generale dello Stato</span>"
-    f'  <span>Avviato: {start_time_str} &nbsp;|&nbsp; Legge di Bilancio 2026</span>'
+    f'  <span>Avviato: {start_time_str} &nbsp;|&nbsp; Legge di Bilancio {anni_disponibili[0]}-{anno_max}</span>'
     f'</div>',
     unsafe_allow_html=True,
 )
@@ -1574,7 +2084,7 @@ with st.sidebar:
         f"<div style='font-size:10px;opacity:.40;padding-bottom:8px;"
         f"font-family:Segoe UI,sans-serif'>"
         f"Avviato: {start_time_str}<br>"
-        f"Fonte: RGS -- Legge di Bilancio 2026"
+        f"Fonte: RGS -- Legge di Bilancio {anni_disponibili[0]}-{anno_max}"
         f"</div>",
         unsafe_allow_html=True,
     )
