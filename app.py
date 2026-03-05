@@ -2002,6 +2002,67 @@ elif pagina == "Confronto Annuale":
 
             st.dataframe(df_storico_display, use_container_width=True, hide_index=True)
 
+            # --- GRAFICO TOTALE CAPITOLO ---
+            st.markdown(
+                '<div class="mef-page-title" style="font-size:15px;margin-top:1.5rem">'
+                f'Andamento stanziamento CP -- Cap. {sel_cap_storico}</div>',
+                unsafe_allow_html=True,
+            )
+
+            # Prepara dati per il grafico totale
+            chart_totale = {}
+            for anno in anni_presenti:
+                v = totale_row.get(f"CP {anno}")
+                if v is not None:
+                    chart_totale[anno] = v
+            if chart_totale:
+                df_chart_tot = pd.DataFrame({
+                    "Anno": list(chart_totale.keys()),
+                    "Totale CP": list(chart_totale.values()),
+                }).set_index("Anno")
+                st.line_chart(df_chart_tot, use_container_width=True)
+
+            # --- GRAFICO PER SINGOLO PG ---
+            if len(pg_list) > 1:
+                st.markdown(
+                    '<div class="mef-page-title" style="font-size:15px;margin-top:1rem">'
+                    'Andamento per Piano Gestionale</div>',
+                    unsafe_allow_html=True,
+                )
+
+                # Costruisci df con anno come indice e un colonna per PG
+                chart_pg_data = {}
+                for pg in pg_list:
+                    serie = {}
+                    for anno in anni_presenti:
+                        df_pg_anno = df_cap_storico[
+                            (df_cap_storico["Numero Piano di Gestione"] == pg)
+                            & (df_cap_storico[ANNO_COL] == anno)
+                        ]
+                        if len(df_pg_anno) > 0:
+                            serie[anno] = int(df_pg_anno["Legge di Bilancio CP A1"].sum())
+                        else:
+                            serie[anno] = 0
+                    label = f"PG {int(pg)} - {pg_names[pg][:40]}"
+                    chart_pg_data[label] = serie
+
+                df_chart_pg = pd.DataFrame(chart_pg_data)
+                df_chart_pg.index.name = "Anno"
+                st.line_chart(df_chart_pg, use_container_width=True)
+
+                # Opzione: mostra singolo PG isolato
+                pg_chart_options = {f"PG {int(pg)} - {pg_names[pg]}": pg for pg in pg_list}
+                sel_pg_chart = st.selectbox(
+                    "Dettaglio singolo PG:",
+                    options=["-- Tutti --"] + list(pg_chart_options.keys()),
+                    key="sel_pg_chart",
+                )
+                if sel_pg_chart != "-- Tutti --":
+                    pg_num = pg_chart_options[sel_pg_chart]
+                    label = f"PG {int(pg_num)} - {pg_names[pg_num][:40]}"
+                    if label in df_chart_pg.columns:
+                        st.bar_chart(df_chart_pg[[label]], use_container_width=True)
+
             # Variazioni anno su anno per il totale capitolo
             st.markdown(
                 '<div class="mef-page-title" style="font-size:15px;margin-top:1rem">'
