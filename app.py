@@ -912,9 +912,14 @@ def fmt_eur_short(val):
     elif v < 1_000_000_000:
         mln = v / 1_000_000
         result = f"{mln:,.1f}mln".replace(",", ".") if mln < 100 else f"{mln:,.0f}mln".replace(",", ".")
+        result = result.replace(".0mln", "mln")
     else:
         mld = v / 1_000_000_000
         result = f"{mld:,.2f}mld".replace(",", ".") if mld < 10 else f"{mld:,.1f}mld".replace(",", ".")
+        result = result.replace(".00mld", "mld").replace(".0mld", "mld")
+        # 1.50mld -> 1.5mld
+        if result.endswith("0mld") and "." in result:
+            result = result[:-4].rstrip("0") + "mld"
     return f"EUR {'-' if neg else ''}{result}"
 
 
