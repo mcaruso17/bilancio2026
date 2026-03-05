@@ -1004,19 +1004,24 @@ def visualizza_capitoli(df_out, mostra_selezione=False):
     user_ruolo = st.session_state.get("ruolo", "")
     user_puo_mappare = mostra_selezione and (is_super_admin() or user_ruolo in ["DIR.", "FUN."])
 
-    all_caps = sorted(df_out["Numero Capitolo di Spesa"].unique())
+    # Costruisci tutte le chiavi checkbox (amm + cap per unicita)
+    all_chk_keys = []
+    for amm in sorted(df_out["Amministrazione"].unique()):
+        df_amm = df_out[df_out["Amministrazione"] == amm]
+        for num_cap in sorted(df_amm["Numero Capitolo di Spesa"].unique()):
+            all_chk_keys.append(f"chk_{hash(amm) & 0xFFFFFF}_{num_cap}")
 
     if user_puo_mappare:
         col_sel, col_desel, col_spacer = st.columns([1, 1, 3])
         with col_sel:
             if st.button("Seleziona tutti", key="btn_sel_tutti"):
-                for cap in all_caps:
-                    st.session_state[f"chk_cap_{cap}"] = True
+                for k in all_chk_keys:
+                    st.session_state[k] = True
                 st.rerun()
         with col_desel:
             if st.button("Deseleziona tutti", key="btn_desel_tutti"):
-                for cap in all_caps:
-                    st.session_state[f"chk_cap_{cap}"] = False
+                for k in all_chk_keys:
+                    st.session_state[k] = False
                 st.rerun()
 
     caps_selezionati = []
@@ -1028,10 +1033,13 @@ def visualizza_capitoli(df_out, mostra_selezione=False):
             unsafe_allow_html=True,
         )
 
+        amm_hash = hash(amm) & 0xFFFFFF
+
         for num_cap in sorted(df_amm["Numero Capitolo di Spesa"].unique()):
             df_cap = df_amm[df_amm["Numero Capitolo di Spesa"] == num_cap]
             nome_cap = df_cap["Capitolo di Spesa"].iloc[0]
             tot_cap = df_cap["Legge di Bilancio CP A1"].sum()
+            chk_key = f"chk_{amm_hash}_{num_cap}"
 
             # Checkbox + Expander sulla stessa riga
             if user_puo_mappare:
@@ -1039,8 +1047,8 @@ def visualizza_capitoli(df_out, mostra_selezione=False):
                 with col_chk:
                     checked = st.checkbox(
                         "sel",
-                        value=st.session_state.get(f"chk_cap_{num_cap}", False),
-                        key=f"chk_cap_{num_cap}",
+                        value=st.session_state.get(chk_key, False),
+                        key=chk_key,
                         label_visibility="collapsed",
                     )
                     if checked:
@@ -1293,7 +1301,7 @@ if pagina == "Cerca Piano Gestionale":
                              "filtro_amm_risultati"]
             # Pulisci anche tutte le checkbox capitoli
             for k in list(st.session_state.keys()):
-                if k.startswith("chk_cap_"):
+                if k.startswith("chk_"):
                     keys_to_clear.append(k)
             for k in keys_to_clear:
                 if k in st.session_state:
