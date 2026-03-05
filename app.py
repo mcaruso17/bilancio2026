@@ -921,12 +921,19 @@ def build_label_map(df_slice, code_col, name_col):
         .drop_duplicates()
         .sort_values(code_col)
     )
+
+    def fmt_code(val):
+        try:
+            return f"{int(val):02d}"
+        except (ValueError, TypeError):
+            return str(val).strip()
+
     labels = [
-        f"{row[code_col]:02d} -- {row[name_col]}"
+        f"{fmt_code(row[code_col])} -- {row[name_col]}"
         for _, row in pairs.iterrows()
     ]
     label_to_code = {
-        f"{row[code_col]:02d} -- {row[name_col]}": row[code_col]
+        f"{fmt_code(row[code_col])} -- {row[name_col]}": row[code_col]
         for _, row in pairs.iterrows()
     }
     return labels, label_to_code
