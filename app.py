@@ -18,6 +18,8 @@ start_time_str = start_time.strftime("%d/%m/%Y %H:%M:%S")
 
 BILANCIO_CSV = "bilanci.csv.gz"
 MAPPATURA_FILE = "mappatura_uffici.json"
+PERSONALE_XLSX = "personale.xlsx"
+CREDENZIALI_CSV = "credenziali_temporanee.csv"
 
 UFFICI = [
     "1", "2", "3", "4", "5", "6", "7",
@@ -30,6 +32,100 @@ UFFICI = [
 
 init_database()
 auth = Authenticator()
+
+# ===================================================================
+#  AUTO-CARICAMENTO UTENTI DA REPO (personale.xlsx + credenziali_temporanee.csv)
+# ===================================================================
+
+def auto_carica_utenti():
+    """Carica utenti dal file personale.xlsx e credenziali_temporanee.csv
+    presenti nella repo. Eseguito a ogni avvio per ricostruire il DB."""
+    if not os.path.exists(PERSONALE_XLSX) or not os.path.exists(CREDENZIALI_CSV):
+        return
+
+    try:
+        df_pers = pd.read_excel(PERSONALE_XLSX)
+        df_pers.columns = df_pers.columns.str.strip().str.lower()
+        df_pers = df_pers.dropna(subset=["nominativo"])
+
+        df_cred = pd.read_csv(CREDENZIALI_CSV)
+        df_cred.columns = df_cred.columns.str.strip().str.lower()
+
+        # Crea lookup email -> password dal file credenziali
+        cred_lookup = {}
+        for _, r in df_cred.iterrows():
+            cred_lookup[str(r["email"]).strip().lower()] = str(r["password"]).strip()
+            # Anche per nominativo come fallback
+            cred_lookup[str(r["nominativo"]).strip().lower()] = str(r["password"]).strip()
+
+        with get_connection() as conn:
+            for _, riga in df_pers.iterrows():
+                nominativo = str(riga["nominativo"]).strip()
+                email = genera_email(nominativo)
+
+                # Cerca la password: prima per email, poi per nominativo
+                password_utente = cred_lookup.get(
+                    email.lower(),
+                    cred_lookup.get(nominativo.lower(), None)
+                )
+                if not password_utente:
+                    continue  # Salta se non trova la password
+
+                pw_hash, salt = Authenticator.hash_password(password_utente)
+                stored = f"{pw_hash}:{salt}"
+
+                # Controlla se l'utente ha gia cambiato password (non sovrascrivere)
+                existing = conn.execute(
+                    "SELECT deve_cambiare_password FROM users WHERE email = ?",
+                    (email,)
+                ).fetchone()
+
+                if existing and existing["deve_cambiare_password"] == 0:
+                    # L'utente ha gia cambiato password, aggiorna solo i dati anagrafici
+                    conn.execute(
+                        """UPDATE users SET
+                            nominativo = ?, ruolo = ?, ufficio = ?,
+                            stanza = ?, interno = ?, cellulare = ?
+                        WHERE email = ?""",
+                        (
+                            nominativo,
+                            str(riga.get("ruolo", "")),
+                            str(riga.get("ufficio", "")),
+                            str(riga.get("stanza", "")),
+                            str(riga.get("interno", "")),
+                            str(riga.get("cellulare", "")),
+                            email,
+                        )
+                    )
+                else:
+                    # Utente nuovo o che non ha ancora cambiato password: imposta tutto
+                    conn.execute(
+                        """INSERT INTO users
+                        (nominativo, email, password_hash, ruolo, ufficio,
+                         stanza, interno, cellulare, deve_cambiare_password)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+                        ON CONFLICT(email) DO UPDATE SET
+                            nominativo = excluded.nominativo,
+                            password_hash = excluded.password_hash,
+                            ruolo = excluded.ruolo,
+                            ufficio = excluded.ufficio,
+                            stanza = excluded.stanza,
+                            interno = excluded.interno,
+                            cellulare = excluded.cellulare,
+                            deve_cambiare_password = 1""",
+                        (
+                            nominativo, email, stored,
+                            str(riga.get("ruolo", "")),
+                            str(riga.get("ufficio", "")),
+                            str(riga.get("stanza", "")),
+                            str(riga.get("interno", "")),
+                            str(riga.get("cellulare", "")),
+                        )
+                    )
+    except Exception as e:
+        pass  # Silenzioso all'avvio, non bloccare l'app
+
+auto_carica_utenti()
 
 st.set_page_config(
     page_title="Navigatore LdB -- Ragioneria Generale dello Stato",
@@ -512,6 +608,30 @@ def pagina_carica_utenti():
     st.markdown('<div class="mef-page-title">Caricamento Utenti</div>', unsafe_allow_html=True)
     st.markdown('<div class="mef-page-subtitle">Area riservata all\'amministratore del sistema</div>', unsafe_allow_html=True)
 
+    # Mostra stato auto-caricamento
+    has_personale = os.path.exists(PERSONALE_XLSX)
+    has_credenziali = os.path.exists(CREDENZIALI_CSV)
+
+    if has_personale and has_credenziali:
+        st.success(
+            f"**Caricamento automatico attivo.** "
+            f"I file `{PERSONALE_XLSX}` e `{CREDENZIALI_CSV}` sono presenti nella repo. "
+            f"Gli utenti vengono caricati automaticamente a ogni avvio dell'app."
+        )
+        with get_connection() as conn:
+            n_utenti = conn.execute("SELECT COUNT(*) FROM users WHERE attivo = 1").fetchone()[0]
+        st.info(f"Utenti attivi nel database: **{n_utenti}**")
+    else:
+        missing = []
+        if not has_personale:
+            missing.append(f"`{PERSONALE_XLSX}`")
+        if not has_credenziali:
+            missing.append(f"`{CREDENZIALI_CSV}`")
+        st.warning(f"File mancanti nella repo: {', '.join(missing)}. Caricamento automatico non attivo.")
+
+    st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
+    st.markdown("**Caricamento manuale** (opzionale, per aggiungere utenti extra)")
+
     if "admin_autenticato" not in st.session_state:
         st.session_state.admin_autenticato = False
     if "credenziali_generate" not in st.session_state:
@@ -613,9 +733,40 @@ def pannello_admin():
     )
 
     if st.button("Reset Password", key="btn_reset_pw"):
-        nuova_pw = Authenticator.reset_password(utente_scelto["id"])
-        st.success(f"Nuova pw: {nuova_pw}")
-        st.warning("Comunicala all'utente!")
+        # Cerca la password originale dal file credenziali
+        nuova_pw = None
+        if os.path.exists(CREDENZIALI_CSV):
+            try:
+                df_cred = pd.read_csv(CREDENZIALI_CSV)
+                df_cred.columns = df_cred.columns.str.strip().str.lower()
+                match = df_cred[
+                    df_cred["email"].str.strip().str.lower()
+                    == utente_scelto["email"].strip().lower()
+                ]
+                if match.empty:
+                    match = df_cred[
+                        df_cred["nominativo"].str.strip().str.lower()
+                        == utente_scelto["nominativo"].strip().lower()
+                    ]
+                if not match.empty:
+                    nuova_pw = str(match.iloc[0]["password"]).strip()
+            except Exception:
+                pass
+
+        if nuova_pw:
+            pw_hash, salt = Authenticator.hash_password(nuova_pw)
+            stored = f"{pw_hash}:{salt}"
+            with get_connection() as conn:
+                conn.execute(
+                    "UPDATE users SET password_hash = ?, deve_cambiare_password = 1 WHERE id = ?",
+                    (stored, utente_scelto["id"])
+                )
+            st.success(f"Password resettata a quella originale.")
+            st.warning("L'utente dovra cambiarla al prossimo accesso.")
+        else:
+            nuova_pw = Authenticator.reset_password(utente_scelto["id"])
+            st.success(f"Nuova pw casuale: {nuova_pw}")
+            st.warning("Comunicala all'utente!")
 
 # --- Controllo accesso ---
 if not st.session_state.authenticated:
