@@ -16,7 +16,7 @@ start_time_str = start_time.strftime("%d/%m/%Y %H:%M:%S")
 #                    IMPOSTAZIONI DA MODIFICARE
 # ======================================================================
 
-BILANCIO_CSV = "bilanci.csv"
+BILANCIO_CSV = "bilanci.csv.gz"
 MAPPATURA_FILE = "mappatura_uffici.json"
 
 UFFICI = [
