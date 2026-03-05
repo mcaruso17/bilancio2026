@@ -894,6 +894,30 @@ def fmt_eur(val):
     return f"EUR {int(val):,.0f}".replace(",", ".")
 
 
+def fmt_eur_short(val):
+    """Formato abbreviato per metriche riassuntive: 100mila, 1mln, 1mld"""
+    if pd.isna(val) or val == 0:
+        return "EUR 0"
+    v = int(val)
+    neg = v < 0
+    v = abs(v)
+    if v < 100_000:
+        result = f"{v:,.0f}".replace(",", ".")
+    elif v < 1_000_000:
+        k = round(v / 1_000)
+        if k >= 1000:
+            result = "1mln"
+        else:
+            result = f"{k}mila"
+    elif v < 1_000_000_000:
+        mln = v / 1_000_000
+        result = f"{mln:,.1f}mln".replace(",", ".") if mln < 100 else f"{mln:,.0f}mln".replace(",", ".")
+    else:
+        mld = v / 1_000_000_000
+        result = f"{mld:,.2f}mld".replace(",", ".") if mld < 10 else f"{mld:,.1f}mld".replace(",", ".")
+    return f"EUR {'-' if neg else ''}{result}"
+
+
 def fmt_var(val):
     """Formatta una variazione con segno e colore"""
     if pd.isna(val) or val == 0:
@@ -998,7 +1022,7 @@ def visualizza_capitoli(df_out, mostra_selezione=False):
     col_m1, col_m2, col_m3 = st.columns(3)
     col_m1.metric("Capitoli di Spesa", f"{n_cap_out:,}")
     col_m2.metric("Piani Gestionali", f"{n_pg_out:,}")
-    col_m3.metric("Totale CP Anno 1", fmt_eur(totale_cp))
+    col_m3.metric("Totale CP Anno 1", fmt_eur_short(totale_cp))
 
     # --- Pulsanti Seleziona/Deseleziona tutti ---
     user_ruolo = st.session_state.get("ruolo", "")
@@ -1041,7 +1065,7 @@ def visualizza_capitoli(df_out, mostra_selezione=False):
             tot_cap = df_cap["Legge di Bilancio CP A1"].sum()
 
             with st.expander(
-                f"Cap. {num_cap} -- {nome_cap}  |  {fmt_eur(tot_cap)}",
+                f"Cap. {num_cap} -- {nome_cap}  |  {fmt_eur_short(tot_cap)}",
                 expanded=False,
             ):
                 c1, c2 = st.columns(2)
@@ -1059,7 +1083,7 @@ def visualizza_capitoli(df_out, mostra_selezione=False):
                 for _, pg_row in df_cap.sort_values("Numero Piano di Gestione").iterrows():
                     num_pg = int(pg_row["Numero Piano di Gestione"])
                     desc_pg = pg_row["Piano di Gestione"]
-                    cp1 = fmt_eur(pg_row["Legge di Bilancio CP A1"])
+                    cp1 = fmt_eur_short(pg_row["Legge di Bilancio CP A1"])
 
                     if user_puo_mappare:
                         chk_key = f"chk_{amm_hash}_{num_cap}_{num_pg}"
@@ -1698,9 +1722,9 @@ elif pagina == "Confronto Annuale":
         pct = (delta / tot_a * 100) if tot_a != 0 else 0
 
         col5, col6, col7 = st.columns(3)
-        col5.metric(f"Totale CP {anno_a}", fmt_eur(tot_a))
-        col6.metric(f"Totale CP {anno_b}", fmt_eur(tot_b))
-        col7.metric("Variazione", fmt_eur(delta), f"{pct:+.1f}%")
+        col5.metric(f"Totale CP {anno_a}", fmt_eur_short(tot_a))
+        col6.metric(f"Totale CP {anno_b}", fmt_eur_short(tot_b))
+        col7.metric("Variazione", fmt_eur_short(delta), f"{pct:+.1f}%")
 
     # ---- TAB SCOMPARSI ----
     with tab_scomp:
@@ -1728,7 +1752,7 @@ elif pagina == "Confronto Annuale":
             df_scomp = pd.DataFrame(rows_scomp).sort_values(["Amministrazione", "N. Capitolo", "N. PG"])
 
             tot_scomp = df_scomp[f"CP {anno_a}"].sum()
-            st.metric("Stanziamento perso (PG scomparsi)", fmt_eur(tot_scomp))
+            st.metric("Stanziamento perso (PG scomparsi)", fmt_eur_short(tot_scomp))
 
             df_scomp_display = df_scomp.copy()
             df_scomp_display[f"CP {anno_a}"] = df_scomp_display[f"CP {anno_a}"].apply(fmt_eur)
@@ -1767,7 +1791,7 @@ elif pagina == "Confronto Annuale":
             df_nuovi = pd.DataFrame(rows_nuovi).sort_values(["Amministrazione", "N. Capitolo", "N. PG"])
 
             tot_nuovi = df_nuovi[f"CP {anno_b}"].sum()
-            st.metric("Stanziamento nuovi PG", fmt_eur(tot_nuovi))
+            st.metric("Stanziamento nuovi PG", fmt_eur_short(tot_nuovi))
 
             df_nuovi_display = df_nuovi.copy()
             df_nuovi_display[f"CP {anno_b}"] = df_nuovi_display[f"CP {anno_b}"].apply(fmt_eur)
@@ -2064,7 +2088,7 @@ elif pagina == "Mappatura Uffici":
                 "Ufficio": f"Ufficio {uff}",
                 "Capitoli": caps,
                 "Piani Gestionali": pg_count,
-                "Totale CP 2026": fmt_eur(tot_cp),
+                "Totale CP 2026": fmt_eur_short(tot_cp),
                 "Stato": "Compilato",
             })
         else:
@@ -2125,7 +2149,7 @@ elif pagina == "Mappatura Uffici":
 
         with st.expander(
             f"Ufficio {uff} -- {caps} capitoli, {pg_count} PG, "
-            f"CP 2026: {fmt_eur(tot_cp)}",
+            f"CP 2026: {fmt_eur_short(tot_cp)}",
             expanded=(vista == "Singolo ufficio"),
         ):
             display_cols_map = {
