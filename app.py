@@ -794,8 +794,7 @@ with st.sidebar:
     pagina = st.radio(
         "Pagina",
         options=[
-            "Ricerca per Amministrazione",
-            "Ricerca per Capitolo",
+            "Cerca Piano Gestionale",
             "Confronto Annuale",
             "Mappatura Uffici",
         ],
@@ -1198,254 +1197,175 @@ def selettore_anno(key_prefix=""):
 
 
 # ==================================================================
-#         PAGINA 1 -- RICERCA PER AMMINISTRAZIONE
+#         PAGINA UNICA -- CERCA PIANO GESTIONALE
 # ==================================================================
 
-if pagina == "Ricerca per Amministrazione":
+if pagina == "Cerca Piano Gestionale":
 
-    anno_sel, df_anno = selettore_anno("amm")
+    anno_sel, df_anno = selettore_anno("cerca")
 
-    # --- STEP 1 --- TITOLO ---
-    st.markdown('<div class="mef-page-title" style="font-size:17px">1. Titolo</div>', unsafe_allow_html=True)
-    titoli = sorted(df_anno["Titolo"].unique())
-    sel_titoli = st.multiselect(
-        "Seleziona uno o piu Titoli:",
-        options=titoli,
-        key="sel_titolo",
+    # --- RICERCA TESTUALE (sempre visibile, prominente) ---
+    st.markdown(
+        '<div class="mef-page-title" style="font-size:17px">Ricerca testuale</div>',
+        unsafe_allow_html=True,
     )
-    if not sel_titoli:
-        st.info("Seleziona almeno un titolo per continuare.")
-        st.stop()
-
-    df_filtered = df_anno[df_anno["Titolo"].isin(sel_titoli)].copy()
-
-    # --- STEP 2 --- AMMINISTRAZIONI ---
-    st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
-    st.markdown('<div class="mef-page-title" style="font-size:17px">2. Amministrazioni</div>', unsafe_allow_html=True)
-    amministrazioni = sorted(df_filtered["Amministrazione"].unique())
-    sel_amm = st.multiselect(
-        "Seleziona una o piu Amministrazioni:",
-        options=amministrazioni,
-        key="sel_amm",
+    st.markdown(
+        '<div class="mef-page-subtitle">'
+        'Cerca per descrizione del capitolo, del piano gestionale o per numero capitolo'
+        '</div>',
+        unsafe_allow_html=True,
     )
-    if not sel_amm:
-        st.info("Seleziona almeno un'amministrazione per iniziare.")
-        st.stop()
-
-    df_filtered = df_filtered[df_filtered["Amministrazione"].isin(sel_amm)].copy()
-
-    # --- STEP 3 --- CENTRO RESPONSABILITA ---
-    st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
-    st.markdown('<div class="mef-page-title" style="font-size:17px">3. Centro Responsabilita (Dipartimento)</div>', unsafe_allow_html=True)
-
-    cdr_options = sorted(df_filtered[cdr_col].unique())
-    sel_cdr = st.multiselect(
-        "Seleziona uno o piu Centri di Responsabilita (vuoto = tutti):",
-        options=cdr_options,
-        key="sel_cdr",
-    )
-    if sel_cdr:
-        df_filtered = df_filtered[df_filtered[cdr_col].isin(sel_cdr)].copy()
-
-    # --- STEP 4 --- MISSIONI ---
-    st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
-    st.markdown('<div class="mef-page-title" style="font-size:17px">4. Missioni</div>', unsafe_allow_html=True)
-
-    miss_labels, miss_map = build_label_map(df_filtered, "Codice Missione", "Missione")
-    sel_miss_labels = st.multiselect(
-        "Seleziona una o piu Missioni:",
-        options=miss_labels,
-        key="sel_miss",
-    )
-    if not sel_miss_labels:
-        st.info("Seleziona almeno una missione.")
-        st.stop()
-
-    sel_miss_codes = [miss_map[l] for l in sel_miss_labels]
-    df_filtered = df_filtered[df_filtered["Codice Missione"].isin(sel_miss_codes)].copy()
-
-    # --- STEP 5 --- PROGRAMMI ---
-    st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
-    st.markdown('<div class="mef-page-title" style="font-size:17px">5. Programmi</div>', unsafe_allow_html=True)
-
-    prog_labels, prog_map = build_label_map(df_filtered, "Codice Programma", "Programma")
-    sel_prog_labels = st.multiselect(
-        "Seleziona uno o piu Programmi:",
-        options=prog_labels,
-        key="sel_prog",
-    )
-    if not sel_prog_labels:
-        st.info("Seleziona almeno un programma.")
-        st.stop()
-
-    sel_prog_codes = [prog_map[l] for l in sel_prog_labels]
-    df_filtered = df_filtered[df_filtered["Codice Programma"].isin(sel_prog_codes)].copy()
-
-    # --- STEP 6 --- AZIONI (opzionale) ---
-    st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
-    st.markdown('<div class="mef-page-title" style="font-size:17px">6. Azioni (opzionale)</div>', unsafe_allow_html=True)
-
-    az_labels, az_map = build_label_map(df_filtered, "Codice Azione", "Azione")
-    sel_az_labels = st.multiselect(
-        "Filtra per Azioni (vuoto = tutte):",
-        options=az_labels,
-        key="sel_azione",
-    )
-    if sel_az_labels:
-        sel_az_codes = [az_map[l] for l in sel_az_labels]
-        df_filtered = df_filtered[df_filtered["Codice Azione"].isin(sel_az_codes)].copy()
-
-    # --- RISULTATI ---
-    df_out = df_filtered.copy()
-
-    st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
-    st.markdown('<div class="mef-page-title" style="font-size:17px">Capitoli di Spesa e Piani Gestionali</div>', unsafe_allow_html=True)
 
     search_q = st.text_input(
-        "Cerca nei risultati",
-        placeholder="es. infrastrutture, ferroviario, 7001 ...",
-        key="search_cap",
+        "Cerca",
+        placeholder="es. ferroviario, infrastrutture, 7001, turismo ...",
+        key="search_pg",
     )
+
+    # --- FILTRI A CASCATA (tutti opzionali, in expander) ---
+    st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
+
+    df_filtered = df_anno.copy()
+
+    # Variabili per tracciare i filtri attivi (per la sidebar)
+    filtri_attivi = []
+
+    with st.expander("Filtri avanzati (opzionali)", expanded=False):
+        st.caption("Tutti i filtri sono opzionali. Ogni selezione restringe le opzioni successive.")
+
+        # --- TITOLO ---
+        titoli = sorted(df_filtered["Titolo"].unique())
+        sel_titoli = st.multiselect(
+            "Titolo:",
+            options=titoli,
+            key="sel_titolo",
+        )
+        if sel_titoli:
+            df_filtered = df_filtered[df_filtered["Titolo"].isin(sel_titoli)].copy()
+            filtri_attivi.append(("Titolo", sel_titoli))
+
+        # --- AMMINISTRAZIONE ---
+        amministrazioni = sorted(df_filtered["Amministrazione"].unique())
+        sel_amm = st.multiselect(
+            "Amministrazione:",
+            options=amministrazioni,
+            key="sel_amm",
+        )
+        if sel_amm:
+            df_filtered = df_filtered[df_filtered["Amministrazione"].isin(sel_amm)].copy()
+            filtri_attivi.append(("Amministrazione", sel_amm))
+
+        # --- CENTRO RESPONSABILITA ---
+        cdr_options = sorted(df_filtered[cdr_col].unique())
+        sel_cdr = st.multiselect(
+            "Centro Responsabilita (Dipartimento):",
+            options=cdr_options,
+            key="sel_cdr",
+        )
+        if sel_cdr:
+            df_filtered = df_filtered[df_filtered[cdr_col].isin(sel_cdr)].copy()
+            filtri_attivi.append(("Centro Resp.", sel_cdr))
+
+        # --- MISSIONE ---
+        miss_labels, miss_map = build_label_map(df_filtered, "Codice Missione", "Missione")
+        sel_miss_labels = st.multiselect(
+            "Missione:",
+            options=miss_labels,
+            key="sel_miss",
+        )
+        if sel_miss_labels:
+            sel_miss_codes = [miss_map[l] for l in sel_miss_labels]
+            df_filtered = df_filtered[df_filtered["Codice Missione"].isin(sel_miss_codes)].copy()
+            filtri_attivi.append(("Missione", sel_miss_labels))
+
+        # --- PROGRAMMA ---
+        prog_labels, prog_map = build_label_map(df_filtered, "Codice Programma", "Programma")
+        sel_prog_labels = st.multiselect(
+            "Programma:",
+            options=prog_labels,
+            key="sel_prog",
+        )
+        if sel_prog_labels:
+            sel_prog_codes = [prog_map[l] for l in sel_prog_labels]
+            df_filtered = df_filtered[df_filtered["Codice Programma"].isin(sel_prog_codes)].copy()
+            filtri_attivi.append(("Programma", sel_prog_labels))
+
+        # --- AZIONE ---
+        az_labels, az_map = build_label_map(df_filtered, "Codice Azione", "Azione")
+        sel_az_labels = st.multiselect(
+            "Azione:",
+            options=az_labels,
+            key="sel_azione",
+        )
+        if sel_az_labels:
+            sel_az_codes = [az_map[l] for l in sel_az_labels]
+            df_filtered = df_filtered[df_filtered["Codice Azione"].isin(sel_az_codes)].copy()
+            filtri_attivi.append(("Azione", sel_az_labels))
+
+        # --- NUMERO CAPITOLO DIRETTO ---
+        search_cap_num = st.text_input(
+            "Numeri capitolo (separati da virgola):",
+            placeholder="es. 7001, 7002, 1320",
+            key="search_cap_num",
+        )
+        if search_cap_num:
+            numeri_cercati = []
+            for n in search_cap_num.split(","):
+                n = n.strip()
+                if n.isdigit():
+                    numeri_cercati.append(int(n))
+            if numeri_cercati:
+                df_filtered = df_filtered[
+                    df_filtered["Numero Capitolo di Spesa"].isin(numeri_cercati)
+                ].copy()
+                filtri_attivi.append(("N. Capitolo", [str(n) for n in numeri_cercati]))
+
+    # --- APPLICA RICERCA TESTUALE ---
+    df_out = df_filtered.copy()
+
     if search_q:
         q = search_q.strip().upper()
+        # Cerca in Capitolo di Spesa, Piano di Gestione, Numero Capitolo, Azione
         mask = (
             df_out["Capitolo di Spesa"].str.upper().str.contains(q, na=False)
             | df_out["Piano di Gestione"].str.upper().str.contains(q, na=False)
             | df_out["Numero Capitolo di Spesa"].astype(str).str.contains(q, na=False)
+            | df_out["Azione"].str.upper().str.contains(q, na=False)
         )
         df_out = df_out[mask].copy()
-        st.caption(
-            f"**{df_out['Numero Capitolo di Spesa'].nunique()}** capitoli "
-            f"corrispondenti a \"{search_q}\""
+
+    # --- CONTEGGIO E AVVISO ---
+    has_any_filter = bool(search_q) or bool(filtri_attivi)
+
+    if not has_any_filter:
+        st.info(
+            "Usa la barra di ricerca testuale oppure apri i **Filtri avanzati** "
+            "per restringere i risultati."
         )
+        st.stop()
 
     if df_out.empty:
         st.warning("Nessun risultato con i filtri selezionati.")
         st.stop()
 
+    # --- RISULTATI ---
+    st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="mef-page-title" style="font-size:17px">Risultati</div>',
+        unsafe_allow_html=True,
+    )
+
+    n_cap_out = df_out["Numero Capitolo di Spesa"].nunique()
+    n_pg_out = len(df_out)
+    if search_q:
+        st.caption(
+            f"**{n_cap_out:,}** capitoli e **{n_pg_out:,}** PG "
+            f"corrispondenti a \"{search_q}\""
+            + (f" (con filtri attivi)" if filtri_attivi else "")
+        )
+
     visualizza_capitoli(df_out)
     sezione_export_e_assegnazione(df_out)
-
-    # --- SIDEBAR aggiuntiva ---
-    with st.sidebar:
-        st.markdown("---")
-        st.header("Dataset")
-        st.metric("Anno selezionato", str(anno_sel))
-        st.metric("Record totali", f"{len(df):,}")
-        st.metric("Amministrazioni", f"{df_anno['Amministrazione'].nunique()}")
-        st.metric("Capitoli", f"{df_anno['Numero Capitolo di Spesa'].nunique():,}")
-
-        st.markdown("---")
-        st.subheader("Filtri attivi")
-        if sel_titoli:
-            for t in sel_titoli:
-                st.caption(t)
-        if sel_amm:
-            for a in sel_amm:
-                st.caption(a)
-        if sel_cdr:
-            for c in sel_cdr:
-                st.caption(c)
-        if sel_miss_labels:
-            for m in sel_miss_labels:
-                st.caption(m)
-        if sel_prog_labels:
-            for p in sel_prog_labels:
-                st.caption(p)
-        if sel_az_labels:
-            for a in sel_az_labels:
-                st.caption(a)
-
-        st.markdown("---")
-        st.caption(
-            "Titolo > Amministrazione > Centro Resp. > "
-            "Missione > Programma > Azione > "
-            "Capitolo > PG"
-        )
-
-
-# ==================================================================
-#         PAGINA 2 -- RICERCA PER CAPITOLO
-# ==================================================================
-
-elif pagina == "Ricerca per Capitolo":
-
-    anno_sel, df_anno = selettore_anno("cap")
-
-    st.markdown('<div class="mef-page-title" style="font-size:17px">1. Titolo</div>', unsafe_allow_html=True)
-    titoli = sorted(df_anno["Titolo"].unique())
-    sel_titoli_cap = st.multiselect(
-        "Seleziona uno o piu Titoli:",
-        options=titoli,
-        key="sel_titolo_cap",
-    )
-    if not sel_titoli_cap:
-        st.info("Seleziona almeno un titolo per continuare.")
-        st.stop()
-
-    df_filtered_cap = df_anno[df_anno["Titolo"].isin(sel_titoli_cap)].copy()
-
-    st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
-    st.markdown('<div class="mef-page-title" style="font-size:17px">2. Amministrazioni</div>', unsafe_allow_html=True)
-    amministrazioni_cap = sorted(df_filtered_cap["Amministrazione"].unique())
-    sel_amm_cap = st.multiselect(
-        "Seleziona una o piu Amministrazioni:",
-        options=amministrazioni_cap,
-        key="sel_amm_cap",
-    )
-    if not sel_amm_cap:
-        st.info("Seleziona almeno un'amministrazione per continuare.")
-        st.stop()
-
-    df_filtered_cap = df_filtered_cap[df_filtered_cap["Amministrazione"].isin(sel_amm_cap)].copy()
-
-    st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
-    st.markdown('<div class="mef-page-title" style="font-size:17px">3. Numero Capitolo</div>', unsafe_allow_html=True)
-
-    search_cap = st.text_input(
-        "Inserisci uno o piu numeri di capitolo (separati da virgola)",
-        placeholder="es. 7001, 7002, 1320",
-        key="search_cap_diretto",
-    )
-
-    if not search_cap:
-        st.info("Inserisci almeno un numero di capitolo.")
-        st.stop()
-
-    numeri_cercati = []
-    for n in search_cap.split(","):
-        n = n.strip()
-        if n.isdigit():
-            numeri_cercati.append(int(n))
-
-    if not numeri_cercati:
-        st.warning("Inserisci numeri di capitolo validi (separati da virgola).")
-        st.stop()
-
-    df_out_cap = df_filtered_cap[
-        df_filtered_cap["Numero Capitolo di Spesa"].isin(numeri_cercati)
-    ].copy()
-
-    if df_out_cap.empty:
-        st.warning(
-            f"Nessun capitolo trovato per i numeri: {', '.join(str(n) for n in numeri_cercati)}. "
-            f"Verifica i numeri e il titolo selezionato."
-        )
-        st.stop()
-
-    trovati = set(df_out_cap["Numero Capitolo di Spesa"].unique())
-    non_trovati = [n for n in numeri_cercati if n not in trovati]
-    if non_trovati:
-        st.warning(
-            f"Capitoli non trovati (nel titolo selezionato): "
-            f"{', '.join(str(n) for n in non_trovati)}"
-        )
-
-    st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
-    st.markdown('<div class="mef-page-title" style="font-size:17px">Risultati</div>', unsafe_allow_html=True)
-
-    visualizza_capitoli(df_out_cap)
-    sezione_export_e_assegnazione(df_out_cap)
 
     # --- Rimuovi capitoli dalla mappatura ---
     user_ruolo = st.session_state.ruolo
@@ -1453,7 +1373,11 @@ elif pagina == "Ricerca per Capitolo":
 
     if user_puo_mappare:
         st.markdown('<hr class="mef-rule">', unsafe_allow_html=True)
-        st.markdown('<div class="mef-page-title" style="font-size:17px">Rimuovi capitoli dalla mappatura</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="mef-page-title" style="font-size:17px">'
+            'Rimuovi capitoli dalla mappatura</div>',
+            unsafe_allow_html=True,
+        )
         st.markdown(
             "Rimuove i capitoli trovati sopra dalla mappatura dell'ufficio selezionato."
         )
@@ -1480,7 +1404,7 @@ elif pagina == "Ricerca per Capitolo":
                 mappatura = load_mappatura()
                 esistenti = mappatura.get(uff_rm_key, [])
 
-                caps_da_rimuovere = set(df_out_cap["Numero Capitolo di Spesa"].unique())
+                caps_da_rimuovere = set(df_out["Numero Capitolo di Spesa"].unique())
                 presenti = [r for r in esistenti if r["cap"] in caps_da_rimuovere]
 
                 if not presenti:
@@ -1510,10 +1434,23 @@ elif pagina == "Ricerca per Capitolo":
     # --- SIDEBAR aggiuntiva ---
     with st.sidebar:
         st.markdown("---")
-        st.header("Ricerca attiva")
-        st.caption(f"Anno: {anno_sel}")
-        st.caption(f"Capitoli cercati: {', '.join(str(n) for n in numeri_cercati)}")
-        st.caption(f"Trovati: {len(trovati)} / {len(numeri_cercati)}")
+        st.header("Dataset")
+        st.metric("Anno selezionato", str(anno_sel))
+        st.metric("Amministrazioni", f"{df_anno['Amministrazione'].nunique()}")
+        st.metric("Capitoli", f"{df_anno['Numero Capitolo di Spesa'].nunique():,}")
+
+        if filtri_attivi:
+            st.markdown("---")
+            st.subheader("Filtri attivi")
+            for nome, valori in filtri_attivi:
+                for v in valori:
+                    st.caption(f"{nome}: {v}")
+
+        if search_q:
+            st.markdown("---")
+            st.subheader("Ricerca")
+            st.caption(f'"{search_q}"')
+            st.caption(f"{n_cap_out:,} capitoli, {n_pg_out:,} PG")
 
 
 # ==================================================================
