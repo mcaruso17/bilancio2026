@@ -1211,42 +1211,22 @@ if pagina == "Cerca Piano Gestionale":
     )
     st.markdown(
         '<div class="mef-page-subtitle">'
-        'Cerca per descrizione del capitolo o del piano gestionale. '
-        'Inizia a digitare per vedere i suggerimenti.'
+        'Cerca per descrizione del capitolo, del piano gestionale o per numero. '
+        'I risultati appaiono man mano che digiti.'
         '</div>',
         unsafe_allow_html=True,
     )
 
-    # Opzioni per Capitolo di Spesa (numero + descrizione)
-    cap_pairs = (
-        df_anno[["Numero Capitolo di Spesa", "Capitolo di Spesa"]]
-        .drop_duplicates()
-        .sort_values("Numero Capitolo di Spesa")
-    )
-    cap_options = [
-        f"{int(row['Numero Capitolo di Spesa'])} -- {row['Capitolo di Spesa']}"
-        for _, row in cap_pairs.iterrows()
-    ]
-    cap_to_num = {
-        f"{int(row['Numero Capitolo di Spesa'])} -- {row['Capitolo di Spesa']}": int(row["Numero Capitolo di Spesa"])
-        for _, row in cap_pairs.iterrows()
-    }
-
-    sel_cap_search = st.multiselect(
+    search_cap_text = st.text_input(
         "Cerca Capitolo di Spesa:",
-        options=cap_options,
-        key="search_pg_cap",
-        placeholder="Digita per cercare un capitolo...",
+        placeholder="es. ferroviario, infrastrutture, 7001 ...",
+        key="search_cap_text",
     )
 
-    # Opzioni per Piano di Gestione (descrizione unica)
-    pg_options = sorted(df_anno["Piano di Gestione"].unique())
-
-    sel_pg_search = st.multiselect(
+    search_pg_text = st.text_input(
         "Cerca Piano di Gestione:",
-        options=pg_options,
-        key="search_pg_pg",
-        placeholder="Digita per cercare un piano gestionale...",
+        placeholder="es. manutenzione, contributi, personale ...",
+        key="search_pg_text",
     )
 
     # --- FILTRI A CASCATA (tutti opzionali, in expander) ---
@@ -1258,7 +1238,7 @@ if pagina == "Cerca Piano Gestionale":
         if st.button("Reset filtri", key="btn_reset_filtri"):
             for k in ["sel_titolo", "sel_amm", "sel_cdr", "sel_miss",
                        "sel_prog", "sel_azione", "search_cap_num",
-                       "search_pg_cap", "search_pg_pg"]:
+                       "search_cap_text", "search_pg_text"]:
                 if k in st.session_state:
                     del st.session_state[k]
             st.rerun()
@@ -1361,15 +1341,22 @@ if pagina == "Cerca Piano Gestionale":
     # --- APPLICA RICERCA TESTUALE ---
     df_out = df_filtered.copy()
 
-    if sel_cap_search:
-        sel_cap_nums = [cap_to_num[c] for c in sel_cap_search]
-        df_out = df_out[df_out["Numero Capitolo di Spesa"].isin(sel_cap_nums)].copy()
+    if search_cap_text:
+        q = search_cap_text.strip().lower()
+        mask = (
+            df_out["Capitolo di Spesa"].str.lower().str.contains(q, na=False)
+            | df_out["Numero Capitolo di Spesa"].astype(str).str.contains(q, na=False)
+        )
+        df_out = df_out[mask].copy()
 
-    if sel_pg_search:
-        df_out = df_out[df_out["Piano di Gestione"].isin(sel_pg_search)].copy()
+    if search_pg_text:
+        q = search_pg_text.strip().lower()
+        df_out = df_out[
+            df_out["Piano di Gestione"].str.lower().str.contains(q, na=False)
+        ].copy()
 
     # --- CONTEGGIO E AVVISO ---
-    has_any_filter = bool(sel_cap_search) or bool(sel_pg_search) or bool(filtri_attivi)
+    has_any_filter = bool(search_cap_text) or bool(search_pg_text) or bool(filtri_attivi)
 
     if not has_any_filter:
         st.info(
@@ -1392,10 +1379,10 @@ if pagina == "Cerca Piano Gestionale":
     n_cap_out = df_out["Numero Capitolo di Spesa"].nunique()
     n_pg_out = len(df_out)
     desc_parts = []
-    if sel_cap_search:
-        desc_parts.append(f"{len(sel_cap_search)} capitoli selezionati")
-    if sel_pg_search:
-        desc_parts.append(f"{len(sel_pg_search)} PG selezionati")
+    if search_cap_text:
+        desc_parts.append(f'capitolo: "{search_cap_text}"')
+    if search_pg_text:
+        desc_parts.append(f'PG: "{search_pg_text}"')
     if filtri_attivi:
         desc_parts.append(f"{len(filtri_attivi)} filtri attivi")
 
@@ -1486,13 +1473,13 @@ if pagina == "Cerca Piano Gestionale":
                 for v in valori:
                     st.caption(f"{nome}: {v}")
 
-        if sel_cap_search or sel_pg_search:
+        if search_cap_text or search_pg_text:
             st.markdown("---")
             st.subheader("Ricerca")
-            for c in sel_cap_search:
-                st.caption(f"Cap: {c}")
-            for p in sel_pg_search:
-                st.caption(f"PG: {p}")
+            if search_cap_text:
+                st.caption(f'Capitolo: "{search_cap_text}"')
+            if search_pg_text:
+                st.caption(f'PG: "{search_pg_text}"')
             st.caption(f"{n_cap_out:,} capitoli, {n_pg_out:,} PG")
 
 
